@@ -3,6 +3,7 @@ from time import time
 import matplotlib.pyplot as plt
 from sklearn.linear_model import Ridge
 from sklearn.model_selection import GridSearchCV
+from tqdm import tqdm
 
 
 class em_core:
@@ -327,7 +328,7 @@ def EM(A_initial, C_initial, Q_initial, R_initial, state_initial, state_noise_in
     Q_values[0] = Q_initial
     R_values[0] = R_initial
 
-    for i in range(n_iters):
+    for i in tqdm(range(n_iters), desc='EM iteration: '):
         state_values, error_cov_values, K_values, state_predict_values, error_cov_predict_values = kalman_filter(
             initial_state_comb[i], initial_noise_comb[i], Y, A_values[i], C_values[i], Q_values[i], R_values[i], T)
         state_smooth_values, error_cov_smooth_values, P_1, S_values = kalman_smoothing(Y, A_values[i], state_values,

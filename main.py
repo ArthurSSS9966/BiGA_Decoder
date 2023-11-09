@@ -7,10 +7,10 @@ from EM import em_core
 if __name__ == '__main__':
     train_dataset = import_dataset('Jenkins_train.nwb')
 
-    train_spikes, train_velocity = get_spikes_and_velocity(train_dataset, resample_size=1)
+    train_spikes, train_velocity = get_spikes_and_velocity(train_dataset, resample_size=5, smooth=True)
 
     train_spikes, train_velocity = pre_process_spike(train_spikes, train_velocity, train_dataset,
-                                                     window_step=20, overlap=True, window_size=300)
+                                                     window_step=5, overlap=False, window_size=5, smooth=False)
 
     # TODO: Examine the PSTHs
 

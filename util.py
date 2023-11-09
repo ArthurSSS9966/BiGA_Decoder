@@ -22,34 +22,44 @@ def import_dataset(filepath,filetype='nwb'):
     return dataset
 
 
-def get_spikes_and_velocity(dataset, resample_size=1):
+def get_spikes_and_velocity(dataset, resample_size=1, smooth=False):
     '''
     Extract spikes and velocity from dataset
     :param dataset:
     :param resample_size:
     :return:
     '''
-    dataset.resample(resample_size)
+
+    if smooth:
+        assert resample_size >= 5, 'Resample size must be greater than 5 for smoothing'
+        dataset.resample(5)
+        dataset.smooth_spk(50, name='smth_spk')
+    else:
+        dataset.resample(resample_size)
 
     # Extract neural data and lagged hand velocity
     trial_data = dataset.make_trial_data(align_field='move_onset_time', align_range=(-130, 370))
     lagged_trial_data = dataset.make_trial_data(align_field='move_onset_time', align_range=(-50, 450))
 
     # Extract spikes and velocity
-    spikes = _seg_data_by_trial(trial_data, data_type='spikes')
+    if smooth:
+        spikes = _seg_data_by_trial(trial_data, data_type='spikes_smth_spk')
+    else:
+        spikes = _seg_data_by_trial(trial_data, data_type='spikes')
     vel = _seg_data_by_trial(lagged_trial_data, data_type='hand_vel')
 
     return spikes, vel
 
 
-def pre_process_spike(spikes, vel, dataset, window_step=50, overlap=False, **kwargs):
+def pre_process_spike(spikes, vel, dataset, window_step=50, overlap=False, smooth=True, **kwargs):
     '''
 
     :param spikes:
     :param vel:
     :param dataset:
-    :param window_size:
+    :param window_step:
     :param overlap:
+    :param smooth:
     :param kwargs:
     :return:
     '''
@@ -64,18 +74,17 @@ def pre_process_spike(spikes, vel, dataset, window_step=50, overlap=False, **kwa
         down_spikes[i] = _downsample_data(spikes[i], downsample_rate=window_step, overlap=overlap, **kwargs)  # Smooth with 250ms moving window
         # Downsample velocity the same rate as spikes
         bin_num = down_spikes[i].shape[0]
-        if not overlap:
-            start_ind = kwargs.get('window_size', 0)
-            down_ind = np.linspace(start_ind, vel[i].shape[0]-1, bin_num).astype(int)
-        else:
-            down_ind = np.linspace(0, vel[i].shape[0]-1, bin_num).astype(int)
+        down_ind = np.linspace(0, vel[i].shape[0]-1, bin_num).astype(int)
         down_vel[i] = vel[i][down_ind, :]
 
         # Convert spikes from Poisson to Gaussian
         down_spikes[i] = np.power(down_spikes[i], 3/4)  #TODO: change to 3/4
 
-        # Apply Gaussian smoothing to spikes
-        down_spikes[i] = apply_gaussian_smoothing_2d(down_spikes[i], window_length=20, window_step=window_step//5)
+        if smooth:
+            # Apply Gaussian smoothing to spikes
+            down_spikes[i] = apply_gaussian_smoothing_2d(down_spikes[i],
+                                                         window_length=window_step//5*2,
+                                                         window_step=window_step//5)
 
         if not overlap:
             rate[i] = down_spikes[i] / dataset.bin_width * 1000 / window_step  # Convert to Hz
@@ -258,9 +267,9 @@ if __name__ == '__main__':
     ########## test function ##########
     dataset = import_dataset('Jenkins_small_train.nwb')
 
-    spike, vel = get_spikes_and_velocity(dataset, resample_size=1)
+    spike, vel = get_spikes_and_velocity(dataset, resample_size=5, smooth=True)
 
-    rate, vel = pre_process_spike(spike, vel, dataset, window_step=20, overlap=True, window_size=200)
+    rate, vel = pre_process_spike(spike, vel, dataset, window_step=5, overlap=False, window_size=5, smooth=False)
 
     X, X_test, Y, Y_test = get_surrogate_data(rate, vel, trials=50)
 
