@@ -99,7 +99,7 @@ class em_core:
                                                          self.Q_values[-1], self.R_values[-1], T=T)
 
             x_pred_new = np.zeros_like(x_pred)
-            x_pred_new[0] = self.initial_state_comb[0] / T
+            x_pred_new[0] = self.initial_state_comb[0]/T
             x_pred_new[1:] = x_pred[:-1]
 
             x_pred_trial.append(x_pred_new)
@@ -133,7 +133,7 @@ class em_core:
         return y_pred
 
     def fit(self, spike_data, move, **kwargs):
-        alpha = kwargs.get('alpha', np.logspace(-4, 0, 5))
+        alpha = kwargs.get('alpha', np.logspace(-4, -2, 3))
         self.model = GridSearchCV(Ridge(), {'alpha': alpha})
 
         x_latent = self.cal_latent_states(spike_data, current=True)

@@ -22,7 +22,7 @@ if __name__ == '__main__':
     # 3) Predict latent states
     # 4) Predict hand velocity
 
-    X, X_test, Y, Y_test = get_surrogate_data(train_spikes, train_velocity, trials=200)
+    X, X_test, Y, Y_test = get_surrogate_data(train_spikes, train_velocity, trials=50)
 
     # Run EM
     mses = []

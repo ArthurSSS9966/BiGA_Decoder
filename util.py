@@ -180,9 +180,9 @@ def get_surrogate_data(train_spikes, train_velocity, trials=50):
 
     surrogate_data_test = np.array([train_spikes[i] for i in test_data_idx])
 
-    surrogate_data_movement = np.array([train_velocity[i] for i in range(train_data_idx.shape[0])])
+    surrogate_data_movement = np.array([train_velocity[i] for i in train_data_idx])
 
-    surrogate_data_movement_test = np.array([train_velocity[i] for i in range(test_data_idx.shape[0])])
+    surrogate_data_movement_test = np.array([train_velocity[i] for i in test_data_idx])
 
     # Examine if any column is all 0
     print('Number of all 0 columns:', np.sum(np.sum(surrogate_data_comb, axis=0) == 0))
