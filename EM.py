@@ -135,9 +135,13 @@ class em_core:
     def fit(self, spike_data, move, **kwargs):
         alpha = kwargs.get('alpha', np.logspace(-4, 0, 5))
         self.model = GridSearchCV(Ridge(), {'alpha': alpha})
+
         x_latent = self.cal_latent_states(spike_data, current=True)
         x_latent = np.array([x_latent[i] for i in range(len(x_latent))])
         x_latent = x_latent.reshape(-1, x_latent.shape[-1])
+
+        move = np.array([move[i] for i in range(len(move))])
+        move = move.reshape(-1, move.shape[-1])
         self.model.fit(x_latent, move)
 
     def predict_move(self, spike_data):
@@ -157,6 +161,7 @@ def calculate_sum_log_likelihood(A, C, Q, R, mu, K, X_total, Y_total):
         sum_log_likelihood += calculate_log_likelihood(A, C, Q, R, mu, K, X_total[i], Y_total[i], T)
 
     return sum_log_likelihood
+
 
 def calculate_log_likelihood(A, C, Q, R, mu, K, X, Y, T):
     # Precompute inverses and determinants
@@ -188,6 +193,7 @@ def calculate_log_likelihood(A, C, Q, R, mu, K, X, Y, T):
     log_likelihood = term1 + s1 + term3 + term4 + term5 + s2
 
     return log_likelihood
+
 
 def cal_old_log_likelihood(A, C, Q, R, mu, K, X, Y, T):
     # Calculate the log likelihood for the different terms
