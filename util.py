@@ -30,6 +30,7 @@ def get_spikes_and_velocity(dataset, resample_size=1, smooth=False):
     :return:
     '''
 
+
     if smooth:
         assert resample_size >= 5, 'Resample size must be greater than 5 for smoothing'
         dataset.resample(5)
