@@ -175,10 +175,10 @@ def get_surrogate_data(train_spikes, train_velocity, trials=50):
     test_data_idx = np.random.choice([i for i in range(len(train_spikes)) if i not in train_data_idx], trials,
                                         replace=False)
 
-    surrogate_data = np.array([train_spikes[i] for i in range(train_data_idx.shape[0])])
+    surrogate_data = np.array([train_spikes[i] for i in train_data_idx])
     surrogate_data_comb = surrogate_data.reshape(-1, surrogate_data.shape[-1])  # Just to test 0 firing rate columns
 
-    surrogate_data_test = np.array([train_spikes[i] for i in range(test_data_idx.shape[0])])
+    surrogate_data_test = np.array([train_spikes[i] for i in test_data_idx])
 
     surrogate_data_movement = np.array([train_velocity[i] for i in range(train_data_idx.shape[0])])
 
