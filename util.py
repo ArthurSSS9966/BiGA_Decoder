@@ -171,21 +171,20 @@ def get_surrogate_data(train_spikes, train_velocity, trials=50):
                                         replace=False)
 
     surrogate_data = np.array([train_spikes[i] for i in range(train_data_idx.shape[0])])
-    surrogate_data = surrogate_data.reshape(-1, surrogate_data.shape[-1])
+    surrogate_data_comb = surrogate_data.reshape(-1, surrogate_data.shape[-1])  # Just to test 0 firing rate columns
 
     surrogate_data_test = np.array([train_spikes[i] for i in range(test_data_idx.shape[0])])
 
     surrogate_data_movement = np.array([train_velocity[i] for i in range(train_data_idx.shape[0])])
-    surrogate_data_movement = surrogate_data_movement.reshape(-1, surrogate_data_movement.shape[-1])
 
     surrogate_data_movement_test = np.array([train_velocity[i] for i in range(test_data_idx.shape[0])])
 
     # Examine if any column is all 0
-    print('Number of all 0 columns:', np.sum(np.sum(surrogate_data, axis=0) == 0))
+    print('Number of all 0 columns:', np.sum(np.sum(surrogate_data_comb, axis=0) == 0))
     # Get column index of all 0 columns
-    all_0_col_idx = np.where(np.sum(surrogate_data, axis=0) == 0)[0]
+    all_0_col_idx = np.where(np.sum(surrogate_data_comb, axis=0) == 0)[0]
     # Delete all 0 columns
-    surrogate_data = np.delete(surrogate_data, all_0_col_idx, axis=1)
+    surrogate_data = np.delete(surrogate_data, all_0_col_idx, axis=2)
     surrogate_data_test = np.delete(surrogate_data_test, all_0_col_idx, axis=2)
 
     return surrogate_data, surrogate_data_test, surrogate_data_movement, surrogate_data_movement_test

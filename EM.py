@@ -33,8 +33,8 @@ class em_core:
         print('Running EM algorithm...')
         sttime = time()
 
-        data_dim = self.data.shape[1]
-        timesteps = self.data.shape[0]
+        data_dim = self.data.shape[2]
+        timesteps = self.data.shape[1]
 
         # Initialize parameters
         A = np.random.rand(self.n_dim, self.n_dim)
@@ -91,15 +91,15 @@ class em_core:
             else:
                 data = input_data[i]
 
-            assert data.shape[1] == self.data.shape[1], 'Data dimension does not match'
+            assert data.shape[1] == self.data.shape[2], 'Data dimension does not match'
             T = data.shape[0]
 
             x_pred_curr, _, _, x_pred, _ = kalman_filter(self.initial_state_comb[-1], self.initial_noise_comb[-1],
-                                               data, self.A_values[-1], self.C_values[-1],
-                                               self.Q_values[-1], self.R_values[-1], T=T)
+                                                         data, self.A_values[-1], self.C_values[-1],
+                                                         self.Q_values[-1], self.R_values[-1], T=T)
 
             x_pred_new = np.zeros_like(x_pred)
-            x_pred_new[0] = self.initial_state_comb[0]/T
+            x_pred_new[0] = self.initial_state_comb[0] / T
             x_pred_new[1:] = x_pred[:-1]
 
             x_pred_trial.append(x_pred_new)
@@ -148,7 +148,48 @@ class em_core:
         return y_pred
 
 
+def calculate_sum_log_likelihood(A, C, Q, R, mu, K, X_total, Y_total):
+    ##X_total = N * T * D
+    N = X_total.shape[0]
+    T = X_total.shape[1]
+    sum_log_likelihood = 0
+    for i in range(N):
+        sum_log_likelihood += calculate_log_likelihood(A, C, Q, R, mu, K, X_total[i], Y_total[i], T)
+
+    return sum_log_likelihood
+
 def calculate_log_likelihood(A, C, Q, R, mu, K, X, Y, T):
+    # Precompute inverses and determinants
+    inv_R = np.linalg.inv(R)
+    inv_Q = np.linalg.inv(Q)
+    inv_K = np.linalg.inv(K)
+    det_R = np.linalg.det(R)
+    det_Q = np.linalg.det(Q)
+    det_K = np.linalg.det(K)
+
+    # Calculate terms that don't require looping
+    term1 = -0.5 * T * np.log(det_R)
+    term3 = -0.5 * np.log(det_K)
+    term4 = -0.5 * np.dot((X[0] - mu).T, np.dot(inv_K, X[0] - mu))
+    term5 = -0.5 * (T - 1) * np.log(det_Q)
+
+    # Vectorized computation for s1
+    Cx = np.dot(C, X.T).T  # C times X for all t
+    diff_1 = Y - Cx
+    s1 = -0.5 * np.sum(np.einsum('ij,ij->i', np.dot(diff_1, inv_R), diff_1))
+
+    # Vectorized computation for s2
+    X_shifted = X[1:]  # X[t] for t from 1 to T
+    X_prev = X[:-1]  # X[t-1] for t from 1 to T
+    diff_2 = X_shifted - np.dot(A, X_prev.T).T
+    s2 = -0.5 * np.sum(np.einsum('ij,ij->i', np.dot(diff_2, inv_Q), diff_2))
+
+    # Calculate the overall log likelihood
+    log_likelihood = term1 + s1 + term3 + term4 + term5 + s2
+
+    return log_likelihood
+
+def cal_old_log_likelihood(A, C, Q, R, mu, K, X, Y, T):
     # Calculate the log likelihood for the different terms
     term1 = -0.5 * T * np.log(np.linalg.det(R))
     s1 = 0
@@ -211,7 +252,7 @@ def kalman_filter(initial_state, initial_cov, Y, A, C, Q, R, T):
     return state_values, error_cov_values, K_values, state_predict_values, error_cov_predict_values
 
 
-def kalman_smoothing(Y, A, state_values, error_cov_values, state_predict_values, error_cov_predict_values, T):
+def kalman_smoothing(A, state_values, error_cov_values, state_predict_values, error_cov_predict_values, T):
     p = len(state_values[0])
     state_smooth = state_values[-1]
     error_cov_smooth = error_cov_values[-1]
@@ -255,41 +296,36 @@ def get_P_2(state_smooth_values, S_values, K_values, error_cov_values, A, C, T):
     return P_2
 
 
-def M_step(Y, X, P_1, P_2, T):
+def M_step(Y_total, X_total, P_1_total, P_2_total, T):
     # T: Number of time steps
     # X: List of estimated kalman backward values x̂₁, x̂₂, ..., x̂ₜ, given T
     # P_1: List of matrices P₁, P₂, ..., Pₜ
     # P_2: List of matrices P_t,t-1
     # Y: List of observed values y₁, y₂, ..., yₜ
-    mu = X[0]
-    K = P_1[0] - np.outer(X[0], X[0])
+    N = X_total.shape[0]
 
-    num_rows = len(Y[0])
-    num_cols = len(X[0])
+    # # Compute mu and K
+    mu = np.mean(X_total[:, 0, :], axis=0)
+    K = np.mean(P_1_total[:, 0, :, :], axis=0) - np.outer(mu, mu)
 
-    C_numerator = np.zeros((num_rows, num_cols))
-    C_denominator = np.zeros_like(P_1[0])
-    for t in range(T):
-        C_numerator += np.outer(Y[t], X[t])
-        C_denominator += P_1[t]
+    # Compute C
+    C_numerator = np.tensordot(Y_total, X_total, axes=([0, 1], [0, 1]))
+    C_denominator = np.sum(P_1_total, axis=(0, 1))
     C = np.dot(C_numerator, np.linalg.inv(C_denominator))
 
-    R = np.zeros((num_rows, num_rows))
-    for t in range(T):
-        R += np.outer(Y[t], Y[t]) - np.outer(Y[t], np.dot(C, X[t]))
-    R = R / T
+    # Compute R
+    YX = np.einsum('nij,nik->jk', Y_total, Y_total)
+    YXC = np.einsum('nij,nik->jk', Y_total, np.dot(X_total, C.T))
+    R = (YX - YXC) / (T * N)
 
-    A_numerator = np.zeros_like(P_1[0])
-    A_denominator = np.zeros_like(P_1[0])
-    for t in range(T - 1):
-        A_numerator += P_2[t]
-        A_denominator += P_1[t]
+    # Compute A
+    A_numerator = np.sum(P_2_total, axis=(0, 1))
+    A_denominator = np.sum(P_1_total[:, :-1, :, :], axis=(0, 1))
     A = np.dot(A_numerator, np.linalg.inv(A_denominator))
 
-    Q = np.zeros_like(P_1[0])
-    for t in range(T - 1):
-        Q += P_1[t + 1] - np.dot(P_2[t], A.T)
-    Q = Q / (T - 1)
+    # Compute Q
+    Q = np.sum(P_1_total[:, 1:, :, :], axis=(0, 1)) - np.dot(A_numerator, A.T)
+    Q = Q / ((T - 1) * N)
 
     return mu, K, A, C, Q, R
 
@@ -303,13 +339,14 @@ def EM(A_initial, C_initial, Q_initial, R_initial, state_initial, state_noise_in
     :param R_initial:
     :param state_initial:
     :param state_noise_initial:
-    :param Y:
+    :param Y: list of 2D arrays with shape (timesteps, n_dim)
     :param T:
     :param n_iters:
     :return:
     '''
     p = len(state_initial)
-    q = len(Y[0])
+    q = Y.shape[-1]
+    trial_number = len(Y)
     tol = 1e-8
 
     initial_state_comb = np.zeros((n_iters + 1, p))
@@ -329,18 +366,40 @@ def EM(A_initial, C_initial, Q_initial, R_initial, state_initial, state_noise_in
     R_values[0] = R_initial
 
     for i in tqdm(range(n_iters), desc='EM iteration: '):
-        state_values, error_cov_values, K_values, state_predict_values, error_cov_predict_values = kalman_filter(
-            initial_state_comb[i], initial_noise_comb[i], Y, A_values[i], C_values[i], Q_values[i], R_values[i], T)
-        state_smooth_values, error_cov_smooth_values, P_1, S_values = kalman_smoothing(Y, A_values[i], state_values,
-                                                                                       error_cov_values,
-                                                                                       state_predict_values,
-                                                                                       error_cov_predict_values, T)
-        P_2 = get_P_2(state_smooth_values, S_values, K_values, error_cov_values, A_values[i], C_values[i], T)
+        state_smooth_values = []
+        P_1 = []
+        P_2 = []
+        state_values = []
+        for k in range(trial_number):
+
+            state_values_tep, error_cov_values, K_values,state_predict_values, error_cov_predict_values = \
+                kalman_filter(initial_state_comb[i], initial_noise_comb[i], Y[k],
+                              A_values[i], C_values[i], Q_values[i], R_values[i], T)
+
+            state_values.append(state_values_tep)
+
+            state_smooth_values_tep, error_cov_smooth_values, \
+                P_1_tep, S_values = kalman_smoothing(A_values[i],state_values_tep,error_cov_values,
+                                                     state_predict_values,error_cov_predict_values,T)
+
+            P_1.append(P_1_tep)
+            state_smooth_values.append(state_smooth_values_tep)
+
+            P_2_tep = get_P_2(state_smooth_values_tep, S_values, K_values,
+                              error_cov_values, A_values[i], C_values[i],T)
+            P_2.append(P_2_tep)
+
+        state_values = np.array(state_values)
+        state_smooth_values = np.array(state_smooth_values)
+        P_1 = np.array(P_1)
+        P_2 = np.array(P_2)
+
         initial_state_comb[i + 1], initial_noise_comb[i + 1], A_values[i + 1], C_values[i + 1], Q_values[i + 1], \
             R_values[i + 1] = M_step(Y, state_smooth_values, P_1, P_2, T)
-        log_likelihood[i] = calculate_log_likelihood(A_values[i + 1], C_values[i + 1], Q_values[i + 1], R_values[i + 1],
+
+        log_likelihood[i] = calculate_sum_log_likelihood(A_values[i + 1], C_values[i + 1], Q_values[i + 1], R_values[i + 1],
                                                      initial_state_comb[i + 1], initial_noise_comb[i + 1],
-                                                     state_values, Y, T)
+                                                     state_values, Y)
 
         if i <= 2:
             LLbase = log_likelihood[i]
@@ -360,23 +419,28 @@ if __name__ == '__main__':
     # Create artificial data with 250 columns and 150 rows
     data = np.load('observations.npz')['Y']
 
-    Y_train = data[:10000]
-    Y_test = data[10000:]
+    # Keep the same feature but divide the data into 1000 trials
+    data = data.reshape(1000, -1, data.shape[-1])
+
+    Y_train = data[:50]
+    Y_test = data[50:]
 
     # Run EM
-    EM_class = em_core(Y_train, n_dim=4, n_iters=10)
+    EM_class = em_core(Y_train, n_dim=2, n_iters=3)
     EM_class.get_parameters(plot=True)
 
     # Predict latent states
     latent_states = EM_class.cal_latent_states(Y_train, current=False)
-    back_predict = EM_class.get_one_step_ahead_prediction(latent_states)
+    back_predict = np.array([EM_class.get_one_step_ahead_prediction(latent_states[i])
+                             for i in range(len(latent_states))])
 
     # Plot back_predict and True value
-    plt.plot(back_predict[:, 0], label='Predicted')
-    plt.plot(Y_train[:, 0], label='True')
+    plt.plot(back_predict[0, :, 0], label='Predicted')
+    plt.plot(Y_train[0, :, 0], label='True')
     plt.legend()
     plt.show()
 
     # Calculate MSE
     mse = np.mean((back_predict - Y_train) ** 2)
     print('MSE:', mse)
+
