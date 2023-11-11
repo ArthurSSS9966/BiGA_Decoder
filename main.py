@@ -22,7 +22,7 @@ if __name__ == '__main__':
     # 3) Predict latent states
     # 4) Predict hand velocity
 
-    X, X_test, Y, Y_test = get_surrogate_data(train_spikes, train_velocity, trials=50)
+    X, X_test, Y, Y_test = get_surrogate_data(train_spikes, train_velocity, trials=200)
 
     # Run EM
     mses = []
@@ -30,8 +30,12 @@ if __name__ == '__main__':
     EM_class = em_core(X, n_dim=60, n_iters=10)
     EM_class.get_parameters(plot=True)
 
+    # TODO: Calculate Latent States for training data and plot to see grouping
+
     # Predict latent states
     latent_states = EM_class.cal_latent_states(X_test, current=False)
+
+    # One step ahead prediction for spike data
     back_predict = np.array([EM_class.get_one_step_ahead_prediction(latent_states[i])
                              for i in range(len(latent_states))])
 
@@ -43,8 +47,8 @@ if __name__ == '__main__':
 
     # Plot back_predict and True value
     plt.figure()
-    plt.plot(back_predict_con[:32, 0], label='Predicted')
-    plt.plot(X_test_con[:32, 0], label='True')
+    plt.plot(back_predict_con[:300, 0], label='Predicted')
+    plt.plot(X_test_con[:300, 0], label='True')
     plt.title('Predicted vs True Spike Data, with dimension ' + str(EM_class.n_dim))
     plt.legend()
     plt.show()
@@ -67,9 +71,9 @@ if __name__ == '__main__':
     print('NRMSE for shuffled velocity:', rmse_vel_shuffled)
 
     # Combine all trials for hand_velocity and Y_test
-    hand_velocity_con = np.array([hand_velocity[i] for i in range(len(hand_velocity) // 10)])
+    hand_velocity_con = np.array([hand_velocity[i] for i in range(len(hand_velocity) // 2)])
     hand_velocity_con = hand_velocity_con.reshape(-1, hand_velocity_con.shape[-1])
-    Y_test_con = np.array([Y_test[i] for i in range(len(Y_test) // 10)])
+    Y_test_con = np.array([Y_test[i] for i in range(len(Y_test) // 2)])
     Y_test_con = Y_test_con.reshape(-1, Y_test_con.shape[-1])
 
     # Plot hand_velocity and True value

@@ -47,6 +47,10 @@ def get_spikes_and_velocity(dataset, resample_size=1, smooth=False):
     else:
         spikes = _seg_data_by_trial(trial_data, data_type='spikes')
     vel = _seg_data_by_trial(lagged_trial_data, data_type='hand_vel')
+    pos = _seg_data_by_trial(lagged_trial_data, data_type='hand_pos')
+
+    # Combine vel and pos
+    vel = [np.concatenate((vel[i], pos[i]), axis=1) for i in range(len(vel))]
 
     return spikes, vel
 
@@ -257,9 +261,10 @@ def plot_hand_trajectory(true_vel, pred_vel, plot):
     true_pos = true_pos - true_pos[0, :]
     pred_pos = np.cumsum(pred_vel, axis=0)
     pred_pos = pred_pos - pred_pos[0, :]
-    plot.plot(true_pos[:, 0], true_pos[:, 1], label='True',color='black', linewidth=1)
+    plot.plot(true_pos[:, 0], true_pos[:, 1], label='True', color='black', linewidth=1)
     plot.plot(pred_pos[:, 0], pred_pos[:, 1], label='Predicted', color='red', linewidth=1)
     return plot
+
 
 if __name__ == '__main__':
 
