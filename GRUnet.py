@@ -29,10 +29,10 @@ class KalmanNetNN(torch.nn.Module):
         self.InitSystemDynamics(ssModel.F, ssModel.H, ssModel.K0)   
 
         # Number of neurons in the 1st hidden layer
-        H1_KNet = (ssModel.m + ssModel.n) * 8       # 第一层的neuron 个数 (GRU前) 原(m + n) * (10) * 8
+        H1_KNet = (ssModel.m + ssModel.n) * 10 * 8        # 第一层的neuron 个数 (GRU前) 原(m + n) * (10) * 8
 
         # Number of neurons in the 2nd hidden layer
-        H2_KNet = (ssModel.m * ssModel.n)           # 第二层的neuron 个数 (GRU后) 原 (m * n) * 1 * (4)
+        H2_KNet = (ssModel.m * ssModel.n) * 4          # 第二层的neuron 个数 (GRU后) 原 (m * n) * 1 * (4)
 
         self.InitKGainNet(H1_KNet, H2_KNet)         # Init网络结构, 两个hidden layer neuro个数需要自己定义
 
@@ -72,7 +72,7 @@ class KalmanNetNN(torch.nn.Module):
         # Input Dimension
         self.input_dim = H1
         # Hidden Dimension
-        self.hidden_dim = 10000             # GRU 的hidden dimension; 原来是(m^2+n^2)*10, out of memory! 
+        self.hidden_dim = (self.m ** 2 + self.n ** 2) * 10           # GRU 的hidden dimension; 原来是(m^2+n^2)*10, out of memory! 
         # Number of Layers
         self.n_layers = 1
         # Batch Size
