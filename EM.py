@@ -152,6 +152,8 @@ class em_core:
         return y_pred
 
 
+
+
 def calculate_sum_log_likelihood(A, C, Q, R, mu, K, X_total, Y_total):
     ##X_total = N * T * D
     N = X_total.shape[0]

@@ -9,8 +9,11 @@ if __name__ == '__main__':
 
     train_spikes, train_velocity = get_spikes_and_velocity(train_dataset, resample_size=5, smooth=True)
 
+
     train_spikes, train_velocity = pre_process_spike(train_spikes, train_velocity, train_dataset,
                                                      window_step=5, overlap=True, window_size=15, smooth=False)
+
+    trial_type = train_dataset.trial_info.set_index('trial_type').index.tolist()
 
     # TODO: Examine the PSTHs
 
@@ -22,7 +25,7 @@ if __name__ == '__main__':
     # 3) Predict latent states
     # 4) Predict hand velocity
 
-    X, X_test, Y, Y_test = get_surrogate_data(train_spikes, train_velocity, trials=50)
+    X, X_test, Y, Y_test, X_label, X_test_label = get_surrogate_data(train_spikes, train_velocity, trial_type, trials=200)
 
     # Run EM
     mses = []
@@ -47,10 +50,10 @@ if __name__ == '__main__':
 
     # Plot back_predict and True value
     plt.figure()
-    plt.plot(back_predict_con[:300, 0], label='Predicted')
-    plt.plot(X_test_con[:300, 0], label='True')
+    plt.plot(back_predict_con[:300, 0:5], label='Predicted', color='red')
+    plt.plot(X_test_con[:300, 0:5], label='True', color='black')
     plt.title('Predicted vs True Spike Data, with dimension ' + str(EM_class.n_dim))
-    plt.legend()
+    plt.legend(['Predicted', 'True'])
     plt.show()
 
     EM_class.fit(X, Y)
@@ -71,9 +74,9 @@ if __name__ == '__main__':
     print('NRMSE for shuffled velocity:', rmse_vel_shuffled)
 
     # Combine all trials for hand_velocity and Y_test
-    hand_velocity_con = np.array([hand_velocity[i] for i in range(len(hand_velocity) // 2)])
+    hand_velocity_con = np.array([hand_velocity[i] for i in range(len(hand_velocity) // 10)])
     hand_velocity_con = hand_velocity_con.reshape(-1, hand_velocity_con.shape[-1])
-    Y_test_con = np.array([Y_test[i] for i in range(len(Y_test) // 2)])
+    Y_test_con = np.array([Y_test[i] for i in range(len(Y_test) // 10)])
     Y_test_con = Y_test_con.reshape(-1, Y_test_con.shape[-1])
 
     # Plot hand_velocity and True value
@@ -85,7 +88,10 @@ if __name__ == '__main__':
 
     # TODO: Make the plot prettier
     fig, ax = plt.subplots()
-    for i in range(50):
+    # Choose random 20 trials index
+    plot_index = np.random.randint(0, len(Y_test), 50)
+    for i in plot_index:
+        # Choose a random trial
         plot = plot_hand_trajectory(Y_test[i], hand_velocity[i], ax)
     ax.set_title('Predicted vs True Hand Trajectory, with dimension ' + str(EM_class.n_dim))
     ax.set_xlabel('X position (mm)')

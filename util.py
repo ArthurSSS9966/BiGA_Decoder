@@ -32,8 +32,8 @@ def get_spikes_and_velocity(dataset, resample_size=1, smooth=False):
 
 
     if smooth:
-        assert resample_size >= 5, 'Resample size must be greater than 5 for smoothing'
-        dataset.resample(5)
+        assert resample_size >= 3, 'Resample size must be greater than 3 for smoothing'
+        dataset.resample(resample_size)
         dataset.smooth_spk(50, name='smth_spk')
     else:
         dataset.resample(resample_size)
@@ -160,39 +160,50 @@ def _downsample_data(data, downsample_rate=5, overlap=False, **kwargs):
     return re_sampled_data
 
 
-def get_surrogate_data(train_spikes, train_velocity, trials=50):
+def get_surrogate_data(train_spikes, train_velocity, trial_type, trials=50):
     '''
-
-    :param train_spikes:
-    :param train_velocity:
-    :param trials:
-    :return:
+    :param train_spikes: Spike data for each trial.
+    :param train_velocity: Velocity data for each trial.
+    :param trial_type: Type of each trial.
+    :param trials: Total number of trials to select.
+    :return: Surrogate data for training and testing.
     '''
-    # Generate surrogate data Using 50 trials
-    # Choose Train data index from a random sample of 50 trials
-    train_data_idx = np.random.choice(len(train_spikes), trials, replace=False)
-    # Choose Test data index that is different from Train data index
-    test_data_idx = np.random.choice([i for i in range(len(train_spikes)) if i not in train_data_idx], trials,
-                                        replace=False)
+    n_trial_types = np.random.choice(len(np.unique(trial_type)), min(len(np.unique(trial_type)), trials // 10), replace=False)
 
-    surrogate_data = np.array([train_spikes[i] for i in train_data_idx])
-    surrogate_data_comb = surrogate_data.reshape(-1, surrogate_data.shape[-1])  # Just to test 0 firing rate columns
+    # Initialize lists to store indices
+    train_data_idx = []
+    test_data_idx = []
 
+    # Calculate the number of trials per condition for train and test
+    trials_per_condition_train = int(np.floor(0.8 * trials / len(n_trial_types)))
+    trials_per_condition_test = int(np.ceil(0.2 * trials / len(n_trial_types)))
+
+    # Select indices for train and test data
+    for i in n_trial_types:
+        idx = np.where(np.array(trial_type) == trial_type[i])[0]
+        np.random.shuffle(idx)
+        train_data_idx.extend(idx[:trials_per_condition_train])
+        test_data_idx.extend(idx[trials_per_condition_train:trials_per_condition_train + trials_per_condition_test])
+
+    # Extracting training and testing data
+    surrogate_data_train = np.array([train_spikes[i] for i in train_data_idx])
     surrogate_data_test = np.array([train_spikes[i] for i in test_data_idx])
-
-    surrogate_data_movement = np.array([train_velocity[i] for i in train_data_idx])
-
+    surrogate_data_movement_train = np.array([train_velocity[i] for i in train_data_idx])
     surrogate_data_movement_test = np.array([train_velocity[i] for i in test_data_idx])
 
     # Examine if any column is all 0
+    surrogate_data_comb = surrogate_data_train.reshape(-1, surrogate_data_train.shape[-1])
     print('Number of all 0 columns:', np.sum(np.sum(surrogate_data_comb, axis=0) == 0))
-    # Get column index of all 0 columns
     all_0_col_idx = np.where(np.sum(surrogate_data_comb, axis=0) == 0)[0]
+
     # Delete all 0 columns
-    surrogate_data = np.delete(surrogate_data, all_0_col_idx, axis=2)
+    surrogate_data_train = np.delete(surrogate_data_train, all_0_col_idx, axis=2)
     surrogate_data_test = np.delete(surrogate_data_test, all_0_col_idx, axis=2)
 
-    return surrogate_data, surrogate_data_test, surrogate_data_movement, surrogate_data_movement_test
+    trial_type_train = [trial_type[i] for i in train_data_idx]
+    trial_type_test = [trial_type[i] for i in test_data_idx]
+
+    return surrogate_data_train, surrogate_data_test, surrogate_data_movement_train, surrogate_data_movement_test, trial_type_train, trial_type_test
 
 
 def apply_gaussian_smoothing_2d(data, window_length, window_step):
@@ -276,5 +287,7 @@ if __name__ == '__main__':
 
     rate, vel = pre_process_spike(spike, vel, dataset, window_step=5, overlap=False, window_size=5, smooth=False)
 
-    X, X_test, Y, Y_test = get_surrogate_data(rate, vel, trials=50)
+    trial_condition = dataset.trial_info.set_index('trial_type').index.tolist()
+
+    X, X_test, Y, Y_test, X_label, X_test_label = get_surrogate_data(rate, vel, trial_condition, trials=50)
 
