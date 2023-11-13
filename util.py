@@ -40,8 +40,8 @@ def get_spikes_and_velocity(dataset, resample_size=1, smooth=False):
         dataset.resample(resample_size)
 
     # Extract neural data and lagged hand velocity
-    trial_data = dataset.make_trial_data(align_field='move_onset_time', align_range=(-130, 370))
-    lagged_trial_data = dataset.make_trial_data(align_field='move_onset_time', align_range=(-50, 450))
+    trial_data = dataset.make_trial_data(align_field='move_onset_time', align_range=(-70, 430)) # Default -130,370
+    lagged_trial_data = dataset.make_trial_data(align_field='move_onset_time', align_range=(-20, 480))
 
     # Extract spikes and velocity
     if smooth:
@@ -49,12 +49,34 @@ def get_spikes_and_velocity(dataset, resample_size=1, smooth=False):
     else:
         spikes = _seg_data_by_trial(trial_data, data_type='spikes')
     vel = _seg_data_by_trial(lagged_trial_data, data_type='hand_vel')
-    pos = _seg_data_by_trial(lagged_trial_data, data_type='hand_pos')
 
-    # Combine vel and pos
-    vel = [np.concatenate((vel[i], pos[i]), axis=1) for i in range(len(vel))]
+    # pos = _seg_data_by_trial(lagged_trial_data, data_type='hand_pos')
+    #
+    # # Combine vel and pos
+    # vel = [np.concatenate((vel[i], pos[i]), axis=1) for i in range(len(vel))]
+
+    # # Convert velocity to angle and magnitude
+    # vel = [calculate_angles_and_velocities(vel[i]) for i in range(len(vel))]
 
     return spikes, vel
+
+
+def calculate_angles_and_velocities(velocities):
+    """
+    Calculate the angles (in degrees) and magnitudes of velocity vectors in a 2D array.
+
+    :param velocities: A 2D numpy array where each row is a time point and columns are [x_velocity, y_velocity]
+    :return: A 2D numpy array where each row is [angle, magnitude] for each time point
+    """
+    x_velocities = velocities[:, 0]
+    y_velocities = velocities[:, 1]
+
+    angles_rad = np.arctan2(y_velocities, x_velocities)  # Angles in radians
+    angles_deg = np.degrees(angles_rad)  # Convert to degrees
+
+    magnitudes = np.sqrt(x_velocities**2 + y_velocities**2)  # Magnitudes of the velocities
+
+    return np.column_stack((angles_deg, magnitudes))
 
 
 def pre_process_spike(spikes, vel, dataset, window_step=50, overlap=False, smooth=True, **kwargs):
@@ -141,7 +163,6 @@ def _downsample_data(data, downsample_rate=5, overlap=False, **kwargs):
     :param kwargs:
     :return:
     """
-    re_sampled_data = None
     if not overlap:
         # Down sample by calculating the sum firing rate over a window of every downsample_rate bins
         re_sampled_data = data.reshape(-1, downsample_rate, data.shape[1]).sum(axis=1)
@@ -161,7 +182,7 @@ def _downsample_data(data, downsample_rate=5, overlap=False, **kwargs):
     return re_sampled_data
 
 
-def get_surrogate_data(train_spikes, train_velocity, trial_type, trials=50, split=0.8):
+def get_surrogate_data(train_spikes, train_velocity, trial_type, trials=50, split=0.8, seed=2023):
     '''
     :param train_spikes: Spike data for each trial.
     :param train_velocity: Velocity data for each trial.
@@ -169,6 +190,8 @@ def get_surrogate_data(train_spikes, train_velocity, trial_type, trials=50, spli
     :param trials: Total number of trials to select.
     :return: Surrogate data for training and testing.
     '''
+    # Set seed
+    np.random.seed(seed)
     n_trial_types = np.random.choice(len(np.unique(trial_type)), min(len(np.unique(trial_type)), trials // 10), replace=False)
 
     # Initialize lists to store indices
@@ -273,8 +296,8 @@ def _plot_hand_trajectory(true_vel, pred_vel, plot, **kwargs):
 
     # Calculate hand position with initial position (0, 0)
     true_pos = np.cumsum(true_vel, axis=0)
-    true_pos = true_pos - true_pos[0, :]
     pred_pos = np.cumsum(pred_vel, axis=0)
+    true_pos = true_pos - true_pos[0, :]
     pred_pos = pred_pos - pred_pos[0, :]
 
     plot.plot(true_pos[:, 0], true_pos[:, 1], label='True', color=plot_color, linewidth=1, linestyle='--')
@@ -300,7 +323,7 @@ def _get_color_for_condition(condition, min_condition, max_condition):
     return colormap(norm(condition))
 
 
-def plot_hand_trajectory_conditions(true_vel, pred_vel, labels, trial_number=5):
+def plot_hand_trajectory_conditions(true_vel, pred_vel, labels, trial_number=5, seed=2023):
     '''
     Select 5 conditions and plot at most 10 trials within that condition
     :param true_vel:
@@ -309,6 +332,9 @@ def plot_hand_trajectory_conditions(true_vel, pred_vel, labels, trial_number=5):
     :param trial_number:
     :return:
     '''
+
+    # Set seed
+    np.random.seed(seed)
 
     fig, ax = plt.subplots()
     unique_condition = np.unique(labels)
@@ -328,6 +354,61 @@ def plot_hand_trajectory_conditions(true_vel, pred_vel, labels, trial_number=5):
     ax.set_ylabel('Y position (mm)')
     ax.legend(['True', 'Predicted'])
     plt.show()
+
+
+def plot_hand_velocity(true_vel, pred_vel, trial_num=5, seed=2023):
+    '''
+    Plot hand velocity
+    :param true_vel:
+    :param pred_vel:
+    :param trial_num:
+    :return:
+    '''
+    # Set seed
+    np.random.seed(seed)
+    trial_index = np.random.choice(len(true_vel), trial_num)
+
+    # Combine all trials for hand_velocity and Y_test
+    hand_velocity_con = np.array([pred_vel[i] for i in trial_index])
+    hand_velocity_con = hand_velocity_con.reshape(-1, hand_velocity_con.shape[-1])
+    Y_test_con = np.array([true_vel[i] for i in trial_index])
+    Y_test_con = Y_test_con.reshape(-1, Y_test_con.shape[-1])
+
+    # Plot hand_velocity and True value
+    plt.figure()
+    plt.plot(hand_velocity_con[:, 0], label='Predicted')
+    plt.plot(Y_test_con[:, 0], label='True')
+    plt.title('Predicted vs True Hand Velocity in X direction')
+    plt.legend()
+    plt.show()
+
+    plt.figure()
+    plt.plot(hand_velocity_con[:, 1], label='Predicted')
+    plt.plot(Y_test_con[:, 1], label='True')
+    plt.title('Predicted vs True Hand Velocity in Y direction')
+    plt.legend()
+    plt.show()
+
+
+def convert_angle_mag_to_velocity(angles, magnitudes):
+    """
+    Convert an array of angles and magnitudes to an array of velocities.
+
+    :param angles: A 1D array of angles in degrees.
+    :param magnitudes: A 1D array of magnitudes.
+    :return: A 2D array of velocities where each row is [x_velocity, y_velocity].
+    """
+    # Convert angles to radians
+    angles_rad = np.radians(angles)
+
+    # Calculate the x and y velocities
+    x_velocities = magnitudes * np.cos(angles_rad)
+    y_velocities = magnitudes * np.sin(angles_rad)
+
+    # Combine the velocities into a 2D array
+    velocities = np.column_stack((x_velocities, y_velocities))
+
+    return velocities
 
 
 if __name__ == '__main__':

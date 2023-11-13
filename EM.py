@@ -8,20 +8,20 @@ from tqdm import tqdm
 
 class em_core:
 
-    def __init__(self, data, n_dim=20, n_iters=1000):
+    def __init__(self, data, n_dim=20):
         self.model = None
         self.data = data
         self.n_dim = n_dim
-        self.n_iters = n_iters
 
     def _plot_log_likelihood(self, log_likelihood):
+        plt.figure()
         plt.plot(log_likelihood)
         plt.xlabel('iteration')
         plt.ylabel('log-likelihood')
         plt.title('EM convergence')
         plt.show()
 
-    def get_parameters(self, plot=False):
+    def get_parameters(self, n_iters=10, plot=False):
         '''
 
         :param data: 2D data with shape (timesteps, n_dim)
@@ -45,7 +45,7 @@ class em_core:
         state_noise_initial = np.eye(self.n_dim)
 
         initial_state_comb, initial_noise_comb, A_values, C_values, Q_values, R_values, log_likelihood \
-            = EM(A, C, Q, R, state_initial, state_noise_initial, self.data, timesteps, self.n_iters)
+            = EM(A, C, Q, R, state_initial, state_noise_initial, self.data, timesteps, n_iters)
 
         self.initial_state_comb = initial_state_comb
         self.initial_noise_comb = initial_noise_comb
@@ -133,7 +133,7 @@ class em_core:
         return y_pred
 
     def fit(self, spike_data, move, **kwargs):
-        alpha = kwargs.get('alpha', np.logspace(-4, -2, 3))
+        alpha = kwargs.get('alpha', np.logspace(-4, -1, 4))
         self.model = GridSearchCV(Ridge(), {'alpha': alpha})
 
         x_latent = self.cal_latent_states(spike_data, current=True)

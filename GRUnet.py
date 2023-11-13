@@ -72,7 +72,7 @@ class KalmanNetNN(torch.nn.Module):
         # Input Dimension
         self.input_dim = H1
         # Hidden Dimension
-        self.hidden_dim = 10000           # GRU 的hidden dimension; 原来是(m^2+n^2)*10, out of memory!
+        self.hidden_dim = 1000           # GRU 的hidden dimension; 原来是(m^2+n^2)*10, out of memory!
         # Number of Layers
         self.n_layers = 1
         # Batch Size
