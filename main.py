@@ -23,6 +23,7 @@ if __name__ == '__main__':
     N_CV = N_E - train_samples  # number of cv samples
     learningRate = 1e-5  # learning rate
     weightDecay = 1e-5  # regularizer, for optimizer
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     ##############################Data Initialization##############################################
 
@@ -165,9 +166,9 @@ if __name__ == '__main__':
 
     x_out_cv = torch.empty(N_CV, initGRU.m, initGRU.T)
 
-    for i in range(N_Epochs):
+    for i in tqdm(range(N_Epochs), desc='Training Epochs: '):
         # validation
-        for c in tqdm(range(0, N_CV), desc='validation'):
+        for c in range(0, N_CV):
             y_cv = y_training_cv[c, :, :]
             kn.InitSequence(latent_states_t0_cv[c])
 
@@ -186,7 +187,7 @@ if __name__ == '__main__':
         kn.init_hidden()
         Batch_Optimizing_LOSS_sum = 0
         spike_loss = torch.empty([train_samples, initGRU.T, initGRU.n])
-        for j in tqdm(range(0, N_B), desc='training_samples'):
+        for j in range(0, N_B):
             if N_B == train_samples:
                 n_e = j
             else:
@@ -212,8 +213,4 @@ if __name__ == '__main__':
         Batch_Optimizing_LOSS_mean.backward()
         optimizer.step()
         print(i, "MSE Training :", MSE_train_linear_epoch[i])
-
-
-
-
 

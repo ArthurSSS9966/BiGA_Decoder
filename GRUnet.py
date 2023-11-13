@@ -61,10 +61,10 @@ class KalmanNetNN(torch.nn.Module):
         ### Input Layer ###
         ###################
         # Linear Layer
-        self.KG_l1 = torch.nn.Linear(D_in, H1, bias=True)
+        self.KG_l1 = torch.nn.Linear(D_in, H1, bias=True).to(self.device,non_blocking = True)
 
         # ReLU (Rectified Linear Unit) Activation Function
-        self.KG_relu1 = torch.nn.ReLU()
+        self.KG_relu1 = torch.nn.ReLU().to(self.device,non_blocking = True)
 
         ###########
         ### GRU ###
@@ -72,7 +72,7 @@ class KalmanNetNN(torch.nn.Module):
         # Input Dimension
         self.input_dim = H1
         # Hidden Dimension
-        self.hidden_dim = (self.m ** 2 + self.n ** 2) * 10           # GRU 的hidden dimension; 原来是(m^2+n^2)*10, out of memory! 
+        self.hidden_dim = 10000           # GRU 的hidden dimension; 原来是(m^2+n^2)*10, out of memory!
         # Number of Layers
         self.n_layers = 1
         # Batch Size
@@ -92,21 +92,21 @@ class KalmanNetNN(torch.nn.Module):
         self.hn = torch.randn(self.seq_len_hidden, self.batch_size, self.hidden_dim).to(self.device,non_blocking = True)
 
         # Iniatialize GRU Layer
-        self.rnn_GRU = nn.GRU(self.input_dim, self.hidden_dim, self.n_layers)
+        self.rnn_GRU = nn.GRU(self.input_dim, self.hidden_dim, self.n_layers).to(self.device,non_blocking = True)
 
         ####################
         ### Hidden Layer ###
         ####################
-        self.KG_l2 = torch.nn.Linear(self.hidden_dim, H2, bias=True)
+        self.KG_l2 = torch.nn.Linear(self.hidden_dim, H2, bias=True).to(self.device,non_blocking = True)
 
         # ReLU (Rectified Linear Unit) Activation Function
-        self.KG_relu2 = torch.nn.ReLU()
+        self.KG_relu2 = torch.nn.ReLU().to(self.device,non_blocking = True)
 
 
         ####################
         ### Output Layer ###
         ####################
-        self.KG_l3 = torch.nn.Linear(H2, D_out, bias=True)
+        self.KG_l3 = torch.nn.Linear(H2, D_out, bias=True).to(self.device,non_blocking = True)
 
     ###########################
     ### Initialize Sequence ###
