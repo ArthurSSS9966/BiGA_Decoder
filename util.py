@@ -280,8 +280,6 @@ def _plot_hand_trajectory(true_vel, pred_vel, plot, **kwargs):
     plot.plot(true_pos[:, 0], true_pos[:, 1], label='True', color=plot_color, linewidth=1, linestyle='--')
     plot.plot(pred_pos[:, 0], pred_pos[:, 1], label='Predicted', color=plot_color, linewidth=1, linestyle='-')
 
-    return plot
-
 
 def _get_color_for_condition(condition, min_condition, max_condition):
     """
@@ -324,7 +322,7 @@ def plot_hand_trajectory_conditions(true_vel, pred_vel, labels, trial_number=5):
     for i in plot_index:
         # Choose a random trial
         color = _get_color_for_condition(labels[i], np.min(labels), np.max(labels))
-        plot = _plot_hand_trajectory(pred_vel[i], true_vel[i], ax, plot_color=color)
+        _plot_hand_trajectory(pred_vel[i], true_vel[i], ax, plot_color=color)
     ax.set_title('Predicted vs True Hand Trajectory')
     ax.set_xlabel('X position (mm)')
     ax.set_ylabel('Y position (mm)')
