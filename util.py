@@ -1,5 +1,6 @@
 from nlb_tools.nwb_interface import NWBDataset
 from matplotlib import pyplot as plt
+import matplotlib.colors as mcolors
 import pandas as pd
 import numpy as np
 import time
@@ -160,7 +161,7 @@ def _downsample_data(data, downsample_rate=5, overlap=False, **kwargs):
     return re_sampled_data
 
 
-def get_surrogate_data(train_spikes, train_velocity, trial_type, trials=50):
+def get_surrogate_data(train_spikes, train_velocity, trial_type, trials=50, split=0.8):
     '''
     :param train_spikes: Spike data for each trial.
     :param train_velocity: Velocity data for each trial.
@@ -175,8 +176,8 @@ def get_surrogate_data(train_spikes, train_velocity, trial_type, trials=50):
     test_data_idx = []
 
     # Calculate the number of trials per condition for train and test
-    trials_per_condition_train = int(np.floor(0.8 * trials / len(n_trial_types)))
-    trials_per_condition_test = int(np.ceil(0.2 * trials / len(n_trial_types)))
+    trials_per_condition_train = int(np.floor(split * trials / len(n_trial_types)))
+    trials_per_condition_test = int(np.ceil((1-split) * trials / len(n_trial_types)))
 
     # Select indices for train and test data
     for i in n_trial_types:
@@ -261,21 +262,74 @@ def lowess_smoothing_2d(matrix, window_length, window_step):
     return smoothed_matrix
 
 
-def plot_hand_trajectory(true_vel, pred_vel, plot):
+def _plot_hand_trajectory(true_vel, pred_vel, plot, **kwargs):
     '''
     Plot hand trajectory
     :param true_vel:
     :param pred_vel:
     :return:
     '''
+    plot_color = kwargs.get('plot_color', 'red')
+
     # Calculate hand position with initial position (0, 0)
     true_pos = np.cumsum(true_vel, axis=0)
     true_pos = true_pos - true_pos[0, :]
     pred_pos = np.cumsum(pred_vel, axis=0)
     pred_pos = pred_pos - pred_pos[0, :]
-    plot.plot(true_pos[:, 0], true_pos[:, 1], label='True', color='black', linewidth=1)
-    plot.plot(pred_pos[:, 0], pred_pos[:, 1], label='Predicted', color='red', linewidth=1)
+
+    plot.plot(true_pos[:, 0], true_pos[:, 1], label='True', color=plot_color, linewidth=1, linestyle='--')
+    plot.plot(pred_pos[:, 0], pred_pos[:, 1], label='Predicted', color=plot_color, linewidth=1, linestyle='-')
+
     return plot
+
+
+def _get_color_for_condition(condition, min_condition, max_condition):
+    """
+    Maps a condition number to a color.
+
+    :param condition: The condition number.
+    :param min_condition: The minimum condition number in the range.
+    :param max_condition: The maximum condition number in the range.
+    :return: A color corresponding to the condition number.
+    """
+    # Normalize the condition number
+    norm = mcolors.Normalize(vmin=min_condition, vmax=max_condition)
+
+    # Choose a colormap
+    colormap = plt.cm.viridis
+
+    # Map the normalized condition number to a color
+    return colormap(norm(condition))
+
+
+def plot_hand_trajectory_conditions(true_vel, pred_vel, labels, trial_number=5):
+    '''
+    Select 5 conditions and plot at most 10 trials within that condition
+    :param true_vel:
+    :param pred_vel:
+    :param conditions:
+    :param trial_number:
+    :return:
+    '''
+
+    fig, ax = plt.subplots()
+    unique_condition = np.unique(labels)
+    # Choose 4 conditions and plot all trials in that condition
+    condition_index = np.random.choice(unique_condition, 4)
+    plot_index = []
+
+    for i in condition_index:
+        plot_index.extend(np.where(labels == i)[0][:trial_number])
+
+    for i in plot_index:
+        # Choose a random trial
+        color = _get_color_for_condition(labels[i], np.min(labels), np.max(labels))
+        plot = _plot_hand_trajectory(pred_vel[i], true_vel[i], ax, plot_color=color)
+    ax.set_title('Predicted vs True Hand Trajectory')
+    ax.set_xlabel('X position (mm)')
+    ax.set_ylabel('Y position (mm)')
+    ax.legend(['True', 'Predicted'])
+    plt.show()
 
 
 if __name__ == '__main__':
