@@ -17,7 +17,7 @@ if __name__ == '__main__':
     state_dimensions = 60
     # training params
     N_E = 600  # total samples
-    N_Epochs = 1000  # epochs
+    N_Epochs = 10  # epochs
     train_split = 0.8  # train_cv_split
     train_samples = int(train_split * N_E)  # number of training samples
     N_B = train_samples  # batch size, default full batch
@@ -54,6 +54,11 @@ if __name__ == '__main__':
                                                                      trials=N_E,
                                                                      split=train_split)
 
+    X_test_con = np.array([X_test[i] for i in range(len(X_test))])
+    X_test_con = X_test_con.reshape(-1, X_test_con.shape[-1])
+    Y_test_con = np.array([Y_test[i] for i in range(len(Y_test))])
+    Y_test_con = Y_test_con.reshape(-1, Y_test_con.shape[-1])
+
     # Y_test = np.array([convert_angle_mag_to_velocity(Y_test[i, :, 0], Y_test[i, :, 1])
     #                    for i in range(len(Y_test))])
 
@@ -82,9 +87,13 @@ if __name__ == '__main__':
     baseline_rmse = np.sqrt(np.mean((Y_test - baseline_predict) ** 2)) / np.sqrt(np.var(Y_test))
     print('NRMSE for baseline:', baseline_rmse)
 
-    # Calculate R square for baseline
-    baseline_r2 = baseline_model.score(baseline_X, baseline_Y)
-    print('R square for baseline:', baseline_r2)
+    # Calculate R square for baseline training
+    baseline_r2_train = baseline_model.best_score_
+    print('R square for baseline training:', baseline_r2_train)
+
+    # Calculate R square for baseline testing
+    baseline_r2 = baseline_model.score(X_test_con, Y_test_con)
+    print('R square for baseline testing:', baseline_r2)
 
     ##############################EM Initialization##################################################
     EM_class = em_core(X, n_dim=state_dimensions)
@@ -102,8 +111,6 @@ if __name__ == '__main__':
     # Combine all trials for back_predict and X_test
     back_predict_con = np.array([back_predict[i] for i in range(len(back_predict))])
     back_predict_con = back_predict_con.reshape(-1, back_predict_con.shape[-1])
-    X_test_con = np.array([X_test[i] for i in range(len(X_test))])
-    X_test_con = X_test_con.reshape(-1, X_test_con.shape[-1])
 
     # Plot back_predict and True value
     plt.figure()
@@ -142,7 +149,7 @@ if __name__ == '__main__':
     print('NRMSE for training velocity:', rmse_train_vel)
 
     # Calculate R square for training velocity
-    r2_train_vel = EM_class.model.score(X, Y)
+    r2_train_vel = EM_class.model.best_score_
     print('R square for training velocity:', r2_train_vel)
 
     # Calculate NRMSE for velocity
@@ -150,8 +157,8 @@ if __name__ == '__main__':
     print('NRMSE for test velocity:', rmse_vel)
 
     # Calculate R square for velocity
-    r2_vel = EM_class.model.score(X_test, Y_test)
-    print('R square for velocity:', r2_vel)
+    r2_vel = EM_class.model.score(X_test_con, Y_test_con)
+    print('R square for testing velocity:', r2_vel)
 
     # Calculate NRMSE for a randomized shuffled trial version of hand_velocity
     rmse_vel_shuffled = np.sqrt(np.mean((np.random.permutation(hand_velocity) - Y_test) ** 2)) / np.sqrt(np.var(Y_test))
