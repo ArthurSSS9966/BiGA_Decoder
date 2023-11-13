@@ -157,7 +157,7 @@ if __name__ == '__main__':
     print('NRMSE for test velocity:', rmse_vel)
 
     # Calculate R square for velocity
-    r2_vel = EM_class.model.score(X_test_con, Y_test_con)
+    r2_vel = EM_class.cal_R_square(X_test, Y_test)
     print('R square for testing velocity:', r2_vel)
 
     # Calculate NRMSE for a randomized shuffled trial version of hand_velocity

@@ -144,6 +144,15 @@ class em_core:
         move = move.reshape(-1, move.shape[-1])
         self.model.fit(x_latent, move)
 
+    def cal_R_square(self, spike_data, move):
+        x_latent = self.cal_latent_states(spike_data, current=True)
+        x_latent = np.array([x_latent[i] for i in range(len(x_latent))])
+        x_latent = x_latent.reshape(-1, x_latent.shape[-1])
+
+        move = np.array([move[i] for i in range(len(move))])
+        move = move.reshape(-1, move.shape[-1])
+        return self.model.score(x_latent, move)
+
     def predict_move(self, spike_data):
         x_latent = self.cal_latent_states(spike_data, current=True)
         x_latent = np.array([x_latent[i] for i in range(len(x_latent))])
