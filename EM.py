@@ -99,7 +99,7 @@ class em_core:
                                                          self.Q_values[-1], self.R_values[-1], T=T)
 
             x_pred_new = np.zeros_like(x_pred)
-            x_pred_new[0] = self.initial_state_comb[0]/T
+            x_pred_new[0] = self.initial_state_comb[0] / T
             x_pred_new[1:] = x_pred[:-1]
 
             x_pred_trial.append(x_pred_new)
@@ -133,7 +133,7 @@ class em_core:
         return y_pred
 
     """def fit(self, spike_data, move, **kwargs):
-        alpha = kwargs.get('alpha', np.logspace(-4, -1, 4))
+        alpha = kwargs.get('alpha', np.logspace(0, 6, 4))
         self.model = GridSearchCV(Ridge(), {'alpha': alpha})
 
         x_latent = self.cal_latent_states(spike_data, current=True)
@@ -146,10 +146,10 @@ class em_core:
         move = np.array([move[i] for i in range(len(move))])
         move = move.reshape(-1, move.shape[-1])
         self.model.fit(x_latent, move)"""
-    
-    def fit(self, spike_data, move, concatenate = False, **kwargs):
-        if concatenate == False: 
-            alpha = kwargs.get('alpha', np.logspace(-4, -1, 4))
+
+    def fit(self, spike_data, move, concatenate=False, **kwargs):
+        if concatenate == False:
+            alpha = kwargs.get('alpha', np.logspace(-4, 2, 5))
             self.model = GridSearchCV(Ridge(), {'alpha': alpha})
 
             x_latent = self.cal_latent_states(spike_data, current=True)
@@ -159,8 +159,9 @@ class em_core:
             move = np.array([move[i] for i in range(len(move))])
             move = move.reshape(-1, move.shape[-1])
             self.model.fit(x_latent, move)
+
         else:
-            alpha = kwargs.get('alpha', np.logspace(-4, -1, 4))
+            alpha = kwargs.get('alpha', np.logspace(-4, 2, 5))
             self.model = GridSearchCV(Ridge(), {'alpha': alpha})
 
             x_latent = self.cal_latent_states(spike_data, current=True)
@@ -170,9 +171,9 @@ class em_core:
 
             move = np.array([move[i] for i in range(len(move))])
             move = move.reshape(-1, move.shape[-1])
-            self.model.fit(x_latent, move)    
-            
-    def cal_R_square(self, spike_data, move, concatenate = False):
+            self.model.fit(x_latent, move)
+
+    def cal_R_square(self, spike_data, move, concatenate=False):
         if concatenate == False:
             x_latent = self.cal_latent_states(spike_data, current=True)
             x_latent = np.array([x_latent[i] for i in range(len(x_latent))])
@@ -190,18 +191,18 @@ class em_core:
             move = move.reshape(-1, move.shape[-1])
         return self.model.score(x_latent, move)
 
-    def predict_move(self, spike_data, concatenate = False):
+    def predict_move(self, spike_data, concatenate=False):
         if concatenate == False:
             x_latent = self.cal_latent_states(spike_data, current=True)
             x_latent = np.array([x_latent[i] for i in range(len(x_latent))])
             x_latent = x_latent.reshape(-1, x_latent.shape[-1])
             y_pred = self.model.predict(x_latent)
-        else: 
+        else:
             x_latent = self.cal_latent_states(spike_data, current=True)
             x_latent = np.array([x_latent[i] for i in range(len(x_latent))])
             x_latent = x_latent.reshape(-1, x_latent.shape[-1])
             x_latent = np.concatenate((x_latent, spike_data), axis=1)
-            y_pred = self.model.predict(x_latent)            
+            y_pred = self.model.predict(x_latent)
         return y_pred
 
 
@@ -430,22 +431,21 @@ def EM(A_initial, C_initial, Q_initial, R_initial, state_initial, state_noise_in
         P_2 = []
         state_values = []
         for k in range(trial_number):
-
-            state_values_tep, error_cov_values, K_values,state_predict_values, error_cov_predict_values = \
+            state_values_tep, error_cov_values, K_values, state_predict_values, error_cov_predict_values = \
                 kalman_filter(initial_state_comb[i], initial_noise_comb[i], Y[k],
                               A_values[i], C_values[i], Q_values[i], R_values[i], T)
 
             state_values.append(state_values_tep)
 
             state_smooth_values_tep, error_cov_smooth_values, \
-                P_1_tep, S_values = kalman_smoothing(A_values[i],state_values_tep,error_cov_values,
-                                                     state_predict_values,error_cov_predict_values,T)
+                P_1_tep, S_values = kalman_smoothing(A_values[i], state_values_tep, error_cov_values,
+                                                     state_predict_values, error_cov_predict_values, T)
 
             P_1.append(P_1_tep)
             state_smooth_values.append(state_smooth_values_tep)
 
             P_2_tep = get_P_2(state_smooth_values_tep, S_values, K_values,
-                              error_cov_values, A_values[i], C_values[i],T)
+                              error_cov_values, A_values[i], C_values[i], T)
             P_2.append(P_2_tep)
 
         state_values = np.array(state_values)
@@ -456,9 +456,10 @@ def EM(A_initial, C_initial, Q_initial, R_initial, state_initial, state_noise_in
         initial_state_comb[i + 1], initial_noise_comb[i + 1], A_values[i + 1], C_values[i + 1], Q_values[i + 1], \
             R_values[i + 1] = M_step(Y, state_smooth_values, P_1, P_2, T)
 
-        log_likelihood[i] = calculate_sum_log_likelihood(A_values[i + 1], C_values[i + 1], Q_values[i + 1], R_values[i + 1],
-                                                     initial_state_comb[i + 1], initial_noise_comb[i + 1],
-                                                     state_values, Y)
+        log_likelihood[i] = calculate_sum_log_likelihood(A_values[i + 1], C_values[i + 1], Q_values[i + 1],
+                                                         R_values[i + 1],
+                                                         initial_state_comb[i + 1], initial_noise_comb[i + 1],
+                                                         state_values, Y)
 
         if i <= 2:
             LLbase = log_likelihood[i]
@@ -502,4 +503,3 @@ if __name__ == '__main__':
     # Calculate MSE
     mse = np.mean((back_predict - Y_train) ** 2)
     print('MSE:', mse)
-

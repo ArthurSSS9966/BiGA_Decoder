@@ -8,7 +8,7 @@ from sklearn.linear_model import Ridge
 from sklearn.model_selection import GridSearchCV
 
 from util import import_dataset, get_spikes_and_velocity, pre_process_spike, \
-    get_surrogate_data, plot_hand_trajectory_conditions, plot_hand_velocity, convert_angle_mag_to_velocity
+    get_surrogate_data, plot_hand_trajectory_conditions, plot_hand_velocity
 from EM import em_core
 from GRUnet import InitGRU, KalmanNetNN
 
@@ -17,7 +17,7 @@ if __name__ == '__main__':
     state_dimensions = 60
     # training params
     N_E = 600  # total samples
-    N_Epochs = 10  # epochs
+    N_Epochs = 20  # epochs
     train_split = 0.8  # train_cv_split
     train_samples = int(train_split * N_E)  # number of training samples
     N_B = train_samples  # batch size, default full batch
@@ -26,6 +26,7 @@ if __name__ == '__main__':
     learningRate = 1e-6  # learning rate
     weightDecay = 1e-5  # regularizer, for optimizer
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    concatenate = False  # concatenate latent states and spike data
 
     ##############################Data Initialization##############################################
 
@@ -69,10 +70,11 @@ if __name__ == '__main__':
     baseline_Y = np.array([Y[i] for i in range(len(Y))])
     baseline_Y = baseline_Y.reshape(-1, baseline_Y.shape[-1])
 
-    alpha = np.logspace(-4, -1, 3)
+    alpha = np.logspace(-4, 4, 5)
     baseline_model = GridSearchCV(Ridge(), {'alpha': alpha})
     baseline_model.fit(baseline_X, baseline_Y)
     baseline_predict = np.array([baseline_model.predict(X_test[i]) for i in range(len(X_test))])
+    baseline_predict_con = baseline_predict.reshape(-1, baseline_predict.shape[-1])
 
     # baseline_predict = np.array([convert_angle_mag_to_velocity(baseline_predict[i, :, 0], baseline_predict[i, :, 1])
     #                              for i in range(len(baseline_predict))])
@@ -88,7 +90,7 @@ if __name__ == '__main__':
     print('NRMSE for baseline:', baseline_rmse)
 
     # Calculate R square for baseline training
-    baseline_r2_train = baseline_model.best_score_
+    baseline_r2_train = baseline_model.score(baseline_X, baseline_Y)
     print('R square for baseline training:', baseline_r2_train)
 
     # Calculate R square for baseline testing
@@ -120,11 +122,11 @@ if __name__ == '__main__':
     plt.legend(['Predicted', 'True'])
     plt.show()
 
-    EM_class.fit(X, Y)
+    EM_class.fit(X, Y, concatenate=concatenate)
 
     # Predict the hand velocity
-    hand_velocity = np.array([EM_class.predict_move(X_test[i]) for i in range(X_test.shape[0])])
-    train_hand_velocity = np.array([EM_class.predict_move(X[i]) for i in range(X.shape[0])])
+    hand_velocity = np.array([EM_class.predict_move(X_test[i], concatenate) for i in range(X_test.shape[0])])
+    train_hand_velocity = np.array([EM_class.predict_move(X[i], concatenate) for i in range(X.shape[0])])
 
     # Convert angle and magnitude to velocity
 
@@ -149,7 +151,7 @@ if __name__ == '__main__':
     print('NRMSE for training velocity:', rmse_train_vel)
 
     # Calculate R square for training velocity
-    r2_train_vel = EM_class.model.best_score_
+    r2_train_vel = EM_class.cal_R_square(X, Y, concatenate)
     print('R square for training velocity:', r2_train_vel)
 
     # Calculate NRMSE for velocity
@@ -157,7 +159,7 @@ if __name__ == '__main__':
     print('NRMSE for test velocity:', rmse_vel)
 
     # Calculate R square for velocity
-    r2_vel = EM_class.cal_R_square(X_test, Y_test)
+    r2_vel = EM_class.cal_R_square(X_test, Y_test, concatenate)
     print('R square for testing velocity:', r2_vel)
 
     # Calculate NRMSE for a randomized shuffled trial version of hand_velocity
