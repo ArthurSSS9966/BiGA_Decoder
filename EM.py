@@ -132,20 +132,6 @@ class em_core:
 
         return y_pred
 
-    """def fit(self, spike_data, move, **kwargs):
-        alpha = kwargs.get('alpha', np.logspace(0, 6, 4))
-        self.model = GridSearchCV(Ridge(), {'alpha': alpha})
-
-        x_latent = self.cal_latent_states(spike_data, current=True)
-        print(x_latent.shape)
-        x_latent = np.array([x_latent[i] for i in range(len(x_latent))])
-        print(x_latent.shape)
-        x_latent = x_latent.reshape(-1, x_latent.shape[-1])
-        print(x_latent.shape)
-
-        move = np.array([move[i] for i in range(len(move))])
-        move = move.reshape(-1, move.shape[-1])
-        self.model.fit(x_latent, move)"""
 
     def fit(self, spike_data, move, concatenate=False, **kwargs):
         if concatenate == False:

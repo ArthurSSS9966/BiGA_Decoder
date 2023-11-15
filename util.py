@@ -323,7 +323,7 @@ def _get_color_for_condition(condition, min_condition, max_condition):
     return colormap(norm(condition))
 
 
-def plot_hand_trajectory_conditions(true_vel, pred_vel, labels, trial_number=5, seed=2023):
+def plot_hand_trajectory_conditions(true_vel, pred_vel, labels, trial_number=5, con_num=4, seed=2023):
     '''
     Select 5 conditions and plot at most 10 trials within that condition
     :param true_vel:
@@ -339,7 +339,7 @@ def plot_hand_trajectory_conditions(true_vel, pred_vel, labels, trial_number=5, 
     fig, ax = plt.subplots()
     unique_condition = np.unique(labels)
     # Choose 4 conditions and plot all trials in that condition
-    condition_index = np.random.choice(unique_condition, 4)
+    condition_index = np.random.choice(unique_condition, con_num)
     plot_index = []
 
     for i in condition_index:
@@ -409,6 +409,28 @@ def convert_angle_mag_to_velocity(angles, magnitudes):
     velocities = np.column_stack((x_velocities, y_velocities))
 
     return velocities
+
+
+def cal_R_square(Y_train, Y_test):
+    '''
+    Calculate R square
+    :param Y_train:
+    :param Y_test:
+    :return:
+    '''
+    # Calculate the mean of Y_train
+    Y_train_mean = np.mean(Y_train, axis=0)
+
+    # Calculate the total sum of squares
+    SST = np.sum((Y_test - Y_train_mean) ** 2)
+
+    # Calculate the residual sum of squares
+    SSR = np.sum((Y_test - Y_train) ** 2)
+
+    # Calculate R square
+    R_square = 1 - SSR / SST
+
+    return R_square
 
 
 if __name__ == '__main__':
