@@ -376,6 +376,9 @@ def M_step(Y_total, X_total, P_1_total, P_2_total, T):
     return mu, K, A, C, Q, R
 
 
+
+
+
 def EM(A_initial, C_initial, Q_initial, R_initial, state_initial, state_noise_initial, Y, T, n_iters=1000):
     '''
 

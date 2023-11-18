@@ -529,7 +529,7 @@ def plot_latent_states_1d(latent_states, trial_type, trial_num=5, con_num=4, see
     plt.show()
 
 
-def plot_raw_data(data, trial_type, con_num=4, neuron_num=5, seed=2023):
+def plot_raw_data(data, trial_type, con_num=4, neuron_num=5, seed=2023, label = 'Train'):
     '''
     Plot con_num conditions in each subplot and within each subplot plot neuron_num neurons and trial_num trials
     :param data:
@@ -580,7 +580,7 @@ def plot_raw_data(data, trial_type, con_num=4, neuron_num=5, seed=2023):
                                                                           np.max(neuron_index)))
 
     # Add big title
-    fig.suptitle('Raw Data', fontsize=20)
+    fig.suptitle(label + ' Raw Data', fontsize=20)
     plt.show()
 
 
@@ -670,6 +670,77 @@ def noisy_bootstrapping(X, y, num_bootstrap_samples, noise_level, stack=True):
 
     return X_combined, y_combined
 
+
+def noisy_bootstrapping_condition(X, Y, trial_type, num_bootstrap_samples, noise_level=0.1):
+    '''
+    Add noise to each condition and perform bootstrapping
+    :param X:
+    :param Y:
+    :param trial_type:
+    :param num_bootstrap_samples:
+    :param noise_level:
+    :return:
+    '''
+
+    def add_gaussian_noise(data, std_vec, noise_level):
+        """
+        Adds Gaussian noise to the dataset.
+
+        :param data: 3D input data with shape (N, T, D)
+        :param std_vec: 2D standard deviation vector with shape (T, D)
+        :return: Data with added noise
+        """
+        N, T, D = data.shape
+
+        # Check if std_vec has the correct shape
+        if std_vec.shape != (T, D):
+            raise ValueError("std_vec must have the shape (T, D)")
+
+        # Generate noise for each time step and dimension
+        noise = np.random.normal(0, std_vec, (N, T, D))*noise_level
+
+        # Add noise to the original data
+        noisy_data = data + noise
+
+        return noisy_data
+
+    # Initialize lists to store indices
+    unique_condition = np.unique(trial_type)
+    X_bootstrapped = []
+    Y_bootstrapped = []
+    trial_type_bootstrapped = []
+    for i,j in enumerate(unique_condition):
+        # Randomly select a subset of the training data with replacement
+        indices = np.where(trial_type == j)[0]
+        train_data = X[indices]
+        trian_velocity = Y[indices]
+        for _ in range(num_bootstrap_samples):
+            data_index = np.random.choice(len(train_data), len(train_data), replace=True)
+            boots_strap_data = train_data[data_index]
+            boots_strap_velocity = trian_velocity[data_index]
+            std_data = np.std(boots_strap_data, axis=0)
+            std_velocity = np.std(boots_strap_velocity, axis=0)
+            X_noisy = add_gaussian_noise(boots_strap_data, std_data, noise_level)
+            Y_noisy = add_gaussian_noise(boots_strap_velocity, std_velocity, noise_level)
+            X_bootstrapped.append(X_noisy)
+            Y_bootstrapped.append(Y_noisy)
+            trial_type_bootstrapped.append(np.ones(len(X_noisy))*j)
+
+    # Flatten the lists to create NumPy arrays
+    X_bootstrapped = np.concatenate(X_bootstrapped)
+    Y_bootstrapped = np.concatenate(Y_bootstrapped)
+    trial_type_bootstrapped = np.concatenate(trial_type_bootstrapped)
+    # Combine the noisy samples with the original data
+    X_combined = np.vstack([X, X_bootstrapped])
+    Y_combined = np.vstack([Y, Y_bootstrapped])
+    trial_type_combined = np.hstack([trial_type, trial_type_bootstrapped])
+
+    # Shuffle the combined data
+    shuffle_indices = np.random.permutation(len(X_combined))
+    X_combined = X_combined[shuffle_indices]
+    trial_type_combined = trial_type_combined[shuffle_indices]
+    Y_combined = Y_combined[shuffle_indices]
+    return X_combined, Y_combined, trial_type_combined
 
 if __name__ == '__main__':
     ########## test function ##########

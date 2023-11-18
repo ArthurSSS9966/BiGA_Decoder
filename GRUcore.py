@@ -29,8 +29,8 @@ class BiGRU(torch.nn.Module):
         self.input_dim = inputdim
         self.hidden_dim = hiddendim
         self.out_dim = outputsize
-        self.gru = nn.GRU(self.input_dim, self.hidden_dim,bidirectional=True,
-                          batch_first=True).to(self.device,non_blocking=True)
+        self.gru = nn.GRU(self.input_dim, self.hidden_dim, num_layers=1, bidirectional=True,
+                          batch_first=True).to(self.device, non_blocking=True)
         self.fc_out = nn.Linear(self.hidden_dim * 2, self.out_dim).to(self.device, non_blocking=True)
         self.optimizer = torch.optim.Adam(self.parameters(), lr=learningRate, weight_decay=weight_decay)
 
@@ -84,5 +84,9 @@ class BiGRU(torch.nn.Module):
     def predict_velocity(self, x_latent):
         self.eval()
         with torch.no_grad():
-            v_predict = self(x_latent).detach().cpu().numpy()
-        return v_predict
+            v_predict, hidden_states = self.gru(x_latent)
+            v_predict = self.fc_out(v_predict)
+
+        v_predict = v_predict.cpu().detach().numpy()
+        hidden_states = hidden_states.cpu().detach().numpy()
+        return v_predict, hidden_states

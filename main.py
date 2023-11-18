@@ -5,18 +5,18 @@ from sklearn.linear_model import Ridge
 from sklearn.model_selection import GridSearchCV
 
 from util import import_dataset, get_spikes_and_velocity, pre_process_spike, \
-    get_surrogate_data, plot_hand_trajectory_conditions, plot_hand_velocity, cal_R_square, \
-    plot_latent_states, plot_latent_states_1d, plot_raw_data, encode_trial_type
+    get_surrogate_data, plot_hand_trajectory_conditions, cal_R_square, \
+    plot_latent_states, plot_latent_states_1d, plot_raw_data, encode_trial_type, noisy_bootstrapping_condition
 from EM import em_core
 from GRUcore import BiGRU
 
 if __name__ == '__main__':
     ##############################Parameter Initialization##############################################
-    state_dimensions = 60
-    # training params
-    N_E = 600  # total samples
+    state_dimensions = 20  # number of latent states
+    N_E = 200  # total samples
     N_Epochs = 20  # epochs
     GRU_Epochs = 1600  # epochs
+    GRU_hidden_dim = 60  # hidden dimension
     train_split = 0.8  # train_cv_split
     train_samples = int(train_split * N_E)  # number of training samples
     learningRate = 1e-2  # learning rate
@@ -54,12 +54,16 @@ if __name__ == '__main__':
                                                                      trials=N_E,
                                                                      split=train_split)
 
+    X,Y,X_label = noisy_bootstrapping_condition(X,Y,X_label, num_bootstrap_samples=3, noise_level=0.1)
+
     X_test_con = np.array([X_test[i] for i in range(len(X_test))])
     X_test_con = X_test_con.reshape(-1, X_test_con.shape[-1])
     Y_test_con = np.array([Y_test[i] for i in range(len(Y_test))])
     Y_test_con = Y_test_con.reshape(-1, Y_test_con.shape[-1])
 
-    plot_raw_data(X, X_label, con_num=6, neuron_num=5, seed=14)
+    plot_raw_data(X_test, X_test_label, con_num=6, neuron_num=5, seed=14, label='Test Dataset')
+
+
 
     ##############################Baseline case for LLS##############################################
     # Calculate the baseline case for LLS
@@ -78,7 +82,7 @@ if __name__ == '__main__':
     #                              for i in range(len(baseline_predict))])
 
     # Plot hand velocity
-    plot_hand_velocity(baseline_predict, Y_test, trial_num=10)
+    # plot_hand_velocity(baseline_predict, Y_test, trial_num=10)
 
     # Plot testing hand trajectory and True value
     plot_hand_trajectory_conditions(baseline_predict, Y_test, X_test_label, trial_number=4, seed=14)
@@ -105,14 +109,14 @@ if __name__ == '__main__':
     latent_states = EM_class.cal_latent_states(X_test, current=False)
 
     # Plot latent states
-    plot_latent_states(latent_states, X_test_label, trial_num=4, seed=14)
-    plot_latent_states_1d(latent_states, X_test_label, trial_num=4, seed=14)
+    plot_latent_states(latent_states[:,1:,:], X_test_label, trial_num=4, seed=14)
+    plot_latent_states_1d(latent_states[:,1:,:], X_test_label, trial_num=4, seed=14)
 
     # One step ahead prediction for spike data
     back_predict = np.array([EM_class.get_one_step_ahead_prediction(latent_states[i])
                              for i in range(len(latent_states))])
 
-    plot_raw_data(back_predict, X_test_label, con_num=6, neuron_num=5, seed=14)
+    plot_raw_data(back_predict[:,1:,:], X_test_label, con_num=6, neuron_num=5, seed=14, label='Back Predicted Dataset')
 
     # Combine all trials for back_predict and X_test
     back_predict_con = np.array([back_predict[i] for i in range(len(back_predict))])
@@ -134,14 +138,14 @@ if __name__ == '__main__':
     gru = BiGRU(device=device)
     gru.to(device, non_blocking=True)
     gru.load_data(X_train, X_test_GRU, Y, Y_test)
-    gru.Build(hiddendim=100, learningRate=learningRate, weight_decay=weightDecay)
+    gru.Build(hiddendim=GRU_hidden_dim, learningRate=learningRate, weight_decay=weightDecay)
     train_mse, test_mse = gru.train_fit(GRU_Epochs)
 
     train_mse = train_mse.cpu().detach().numpy()
     test_mse = test_mse.cpu().detach().numpy()
 
-    hand_velocity_gru_train = gru.predict_velocity(gru.X_train)
-    hand_velocity_gru = gru.predict_velocity(gru.X_test)
+    hand_velocity_gru_train, gru_hidden_train = gru.predict_velocity(gru.X_train)
+    hand_velocity_gru, gru_hidden_test = gru.predict_velocity(gru.X_test)
 
     # Evaluate GRU
 
@@ -166,7 +170,7 @@ if __name__ == '__main__':
     print('NRMSE for shuffled velocity:', rmse_vel_shuffled)
 
     # Plot hand trajectory and True value
-    plot_hand_trajectory_conditions(hand_velocity_gru, Y_test, X_test_label,con_num=6, trial_number=4, seed=14)
+    plot_hand_trajectory_conditions(hand_velocity_gru, Y_test, X_test_label, trial_number=4, seed=14)
 
     # Plot training hand trajectory and True value
     plot_hand_trajectory_conditions(hand_velocity_gru_train, Y, X_label, trial_number=10, seed=14)
