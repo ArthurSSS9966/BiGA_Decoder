@@ -125,7 +125,14 @@ if __name__ == '__main__':
     plt.legend(['Predicted', 'True'])
     plt.show()
 
-
+    # ##############################Save After_EM_data##############################################    
+    np.savez('afterEM_dataset.npz',X=X,X_test = X_test,Y=Y,Y_test=Y_test)
+    npzfile = np.load("afterEM_dataset.npz")
+    X = npzfile['X']
+    X_test = npzfile['X_test']
+    Y = npzfile['Y']
+    Y_test = npzfile['Y_test']
+    
     # ##############################GRU Initialization##############################################
     #
     # # data input
