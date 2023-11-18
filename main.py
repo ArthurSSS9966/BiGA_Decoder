@@ -5,7 +5,8 @@ from sklearn.linear_model import Ridge
 from sklearn.model_selection import GridSearchCV
 
 from util import import_dataset, get_spikes_and_velocity, pre_process_spike, \
-    get_surrogate_data, plot_hand_trajectory_conditions, plot_hand_velocity, cal_R_square
+    get_surrogate_data, plot_hand_trajectory_conditions, plot_hand_velocity, cal_R_square, \
+    plot_latent_states, plot_latent_states_1d, plot_raw_data, encode_trial_type
 from EM import em_core
 from GRUcore import BiGRU
 
@@ -14,12 +15,12 @@ if __name__ == '__main__':
     state_dimensions = 60
     # training params
     N_E = 600  # total samples
-    N_Epochs = 10  # epochs
-    GRU_Epochs = 600  # epochs
+    N_Epochs = 20  # epochs
+    GRU_Epochs = 1600  # epochs
     train_split = 0.8  # train_cv_split
     train_samples = int(train_split * N_E)  # number of training samples
     learningRate = 1e-2  # learning rate
-    weightDecay = 1  # regularizer, for optimizer
+    weightDecay = 0.1  # regularizer, for optimizer
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     concatenate = False  # concatenate latent states and spike data
 
@@ -33,6 +34,9 @@ if __name__ == '__main__':
                                                      window_step=5, overlap=True, window_size=15, smooth=False)
 
     trial_type = train_dataset.trial_info.set_index('trial_type').index.tolist()
+    trial_var = train_dataset.trial_info.set_index('trial_version').index.tolist()
+
+    trial_type = encode_trial_type(trial_type, trial_var)
 
     # TODO: Examine the PSTHs
 
@@ -55,8 +59,7 @@ if __name__ == '__main__':
     Y_test_con = np.array([Y_test[i] for i in range(len(Y_test))])
     Y_test_con = Y_test_con.reshape(-1, Y_test_con.shape[-1])
 
-    # Y_test = np.array([convert_angle_mag_to_velocity(Y_test[i, :, 0], Y_test[i, :, 1])
-    #                    for i in range(len(Y_test))])
+    plot_raw_data(X, X_label, con_num=6, neuron_num=5, seed=14)
 
     ##############################Baseline case for LLS##############################################
     # Calculate the baseline case for LLS
@@ -78,7 +81,7 @@ if __name__ == '__main__':
     plot_hand_velocity(baseline_predict, Y_test, trial_num=10)
 
     # Plot testing hand trajectory and True value
-    plot_hand_trajectory_conditions(baseline_predict, Y_test, X_test_label, trial_number=4)
+    plot_hand_trajectory_conditions(baseline_predict, Y_test, X_test_label, trial_number=4, seed=14)
 
     # Calculate NRMSE for baseline
     baseline_rmse = np.sqrt(np.mean((Y_test - baseline_predict) ** 2)) / np.sqrt(np.var(Y_test))
@@ -101,34 +104,19 @@ if __name__ == '__main__':
     # Predict latent states
     latent_states = EM_class.cal_latent_states(X_test, current=False)
 
+    # Plot latent states
+    plot_latent_states(latent_states, X_test_label, trial_num=4, seed=14)
+    plot_latent_states_1d(latent_states, X_test_label, trial_num=4, seed=14)
+
     # One step ahead prediction for spike data
     back_predict = np.array([EM_class.get_one_step_ahead_prediction(latent_states[i])
                              for i in range(len(latent_states))])
 
+    plot_raw_data(back_predict, X_test_label, con_num=6, neuron_num=5, seed=14)
+
     # Combine all trials for back_predict and X_test
     back_predict_con = np.array([back_predict[i] for i in range(len(back_predict))])
     back_predict_con = back_predict_con.reshape(-1, back_predict_con.shape[-1])
-
-    EM_class.fit(X, Y, concatenate=concatenate)
-
-    # Predict the hand velocity
-    hand_velocity = np.array([EM_class.predict_move(X_test[i], concatenate) for i in range(X_test.shape[0])])
-    train_hand_velocity = np.array([EM_class.predict_move(X[i], concatenate) for i in range(X.shape[0])])
-
-    # Convert angle and magnitude to velocity
-
-    # hand_velocity = np.array([convert_angle_mag_to_velocity(hand_velocity[i, :, 0],
-    #                                                         hand_velocity[i, :, 1])
-    #                           for i in range(hand_velocity.shape[0])])
-    #
-    # train_hand_velocity = np.array([convert_angle_mag_to_velocity(train_hand_velocity[i, :, 0],
-    #                                                               train_hand_velocity[i, :, 1])
-    #                                 for i in range(train_hand_velocity.shape[0])])
-    #
-    # Y = np.array([convert_angle_mag_to_velocity(Y[i, :, 0],
-    #                                             Y[i, :, 1])
-    #               for i in range(Y.shape[0])])
-    # Plot back_predict and True value
 
     plt.figure()
     plt.plot(back_predict_con[:300, 0:5], label='Predicted', color='red')
@@ -137,29 +125,7 @@ if __name__ == '__main__':
     plt.legend(['Predicted', 'True'])
     plt.show()
 
-    # Calculate NRMSE
-    rmse = np.sqrt(np.mean((X_test - back_predict) ** 2)) / np.sqrt(np.var(X_test))
-    print('NRMSE for spike data:', rmse)
 
-    # Calculate NRMSE for training velocity
-    rmse_train_vel = np.sqrt(np.mean((train_hand_velocity - Y) ** 2)) / np.sqrt(np.var(Y))
-    print('NRMSE for training velocity:', rmse_train_vel)
-
-    # Calculate R square for training velocity
-    r2_train_vel = EM_class.cal_R_square(X, Y, concatenate)
-    print('R square for training velocity:', r2_train_vel)
-
-    # Calculate NRMSE for velocity
-    rmse_vel = np.sqrt(np.mean((hand_velocity - Y_test) ** 2)) / np.sqrt(np.var(Y_test))
-    print('NRMSE for test velocity:', rmse_vel)
-
-    # Calculate R square for velocity
-    r2_vel = EM_class.cal_R_square(X_test, Y_test, concatenate)
-    print('R square for testing velocity:', r2_vel)
-
-    # Calculate NRMSE for a randomized shuffled trial version of hand_velocity
-    rmse_vel_shuffled = np.sqrt(np.mean((np.random.permutation(hand_velocity) - Y_test) ** 2)) / np.sqrt(np.var(Y_test))
-    print('NRMSE for shuffled velocity:', rmse_vel_shuffled)
     # ##############################GRU Initialization##############################################
     #
     # # data input
@@ -195,8 +161,12 @@ if __name__ == '__main__':
     r2_vel_gru = cal_R_square(hand_velocity_gru, Y_test)
     print('R square for GRU testing velocity:', r2_vel_gru)
 
+    # Calculate NRMSE for a randomized shuffled trial version of hand_velocity
+    rmse_vel_shuffled = np.sqrt(np.mean((np.random.permutation(hand_velocity_gru) - Y_test) ** 2)) / np.sqrt(np.var(Y_test))
+    print('NRMSE for shuffled velocity:', rmse_vel_shuffled)
+
     # Plot hand trajectory and True value
-    plot_hand_trajectory_conditions(hand_velocity_gru, Y_test, X_test_label, trial_number=4, seed=2024)
+    plot_hand_trajectory_conditions(hand_velocity_gru, Y_test, X_test_label,con_num=6, trial_number=4, seed=14)
 
     # Plot training hand trajectory and True value
-    plot_hand_trajectory_conditions(hand_velocity_gru_train, Y, X_label, trial_number=10)
+    plot_hand_trajectory_conditions(hand_velocity_gru_train, Y, X_label, trial_number=10, seed=14)

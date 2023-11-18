@@ -7,7 +7,8 @@ import time
 from scipy.ndimage import gaussian_filter1d
 import statsmodels.api as sm
 
-def import_dataset(filepath,filetype='nwb'):
+
+def import_dataset(filepath, filetype='nwb'):
     '''
     Import dataset from NWB file
     :param filepath:
@@ -23,6 +24,27 @@ def import_dataset(filepath,filetype='nwb'):
     return dataset
 
 
+def encode_trial_type(trial_type, trial_version):
+    """
+    Encodes trial type and trial version into a unique trial type identifier.
+
+    :param trial_type: List or array of trial types.
+    :param trial_version: List or array of trial versions.
+    :return: List of new trial type identifiers.
+    """
+    if len(trial_type) != len(trial_version):
+        raise ValueError("trial_type and trial_version must be of the same length")
+
+    # Find the maximum trial type value to create a unique encoding
+    max_trial_type = max(trial_type)
+
+    # Encode trial type and version into a single value
+    # This assumes that trial_version is relatively small compared to max_trial_type
+    encoded_trial_type = [t_type + (t_version * (max_trial_type + 1)) for t_type, t_version in zip(trial_type, trial_version)]
+
+    return encoded_trial_type
+
+
 def get_spikes_and_velocity(dataset, resample_size=1, smooth=False):
     '''
     Extract spikes and velocity from dataset
@@ -30,7 +52,6 @@ def get_spikes_and_velocity(dataset, resample_size=1, smooth=False):
     :param resample_size:
     :return:
     '''
-
 
     if smooth:
         assert resample_size >= 3, 'Resample size must be greater than 3 for smoothing'
@@ -40,7 +61,7 @@ def get_spikes_and_velocity(dataset, resample_size=1, smooth=False):
         dataset.resample(resample_size)
 
     # Extract neural data and lagged hand velocity
-    trial_data = dataset.make_trial_data(align_field='move_onset_time', align_range=(-70, 430)) # Default -130,370
+    trial_data = dataset.make_trial_data(align_field='move_onset_time', align_range=(-70, 430))  # Default -130,370
     lagged_trial_data = dataset.make_trial_data(align_field='move_onset_time', align_range=(-20, 480))
 
     # Extract spikes and velocity
@@ -74,7 +95,7 @@ def calculate_angles_and_velocities(velocities):
     angles_rad = np.arctan2(y_velocities, x_velocities)  # Angles in radians
     angles_deg = np.degrees(angles_rad)  # Convert to degrees
 
-    magnitudes = np.sqrt(x_velocities**2 + y_velocities**2)  # Magnitudes of the velocities
+    magnitudes = np.sqrt(x_velocities ** 2 + y_velocities ** 2)  # Magnitudes of the velocities
 
     return np.column_stack((angles_deg, magnitudes))
 
@@ -99,25 +120,27 @@ def pre_process_spike(spikes, vel, dataset, window_step=50, overlap=False, smoot
 
     for i in range(len(spikes)):
 
-        down_spikes[i] = _downsample_data(spikes[i], downsample_rate=window_step, overlap=overlap, **kwargs)  # Smooth with 250ms moving window
+        down_spikes[i] = _downsample_data(spikes[i], downsample_rate=window_step, overlap=overlap,
+                                          **kwargs)  # Smooth with 250ms moving window
         # Downsample velocity the same rate as spikes
         bin_num = down_spikes[i].shape[0]
-        down_ind = np.linspace(0, vel[i].shape[0]-1, bin_num).astype(int)
+        down_ind = np.linspace(0, vel[i].shape[0] - 1, bin_num).astype(int)
         down_vel[i] = vel[i][down_ind, :]
 
         # Convert spikes from Poisson to Gaussian
-        down_spikes[i] = np.power(down_spikes[i], 3/4)  #TODO: change to 3/4
+        down_spikes[i] = np.power(down_spikes[i], 3 / 4)  # TODO: change to 3/4
 
         if smooth:
             # Apply Gaussian smoothing to spikes
             down_spikes[i] = apply_gaussian_smoothing_2d(down_spikes[i],
-                                                         window_length=window_step//5*2,
-                                                         window_step=window_step//5)
+                                                         window_length=window_step // 5 * 2,
+                                                         window_step=window_step // 5)
 
         if not overlap:
             rate[i] = down_spikes[i] / dataset.bin_width * 1000 / window_step  # Convert to Hz
         else:
-            rate[i] = down_spikes[i] / dataset.bin_width * 1000 / kwargs.get('window_size', window_step)  # Convert to Hz
+            rate[i] = down_spikes[i] / dataset.bin_width * 1000 / kwargs.get('window_size',
+                                                                             window_step)  # Convert to Hz
 
     return rate, down_vel
 
@@ -192,7 +215,8 @@ def get_surrogate_data(train_spikes, train_velocity, trial_type, trials=50, spli
     '''
     # Set seed
     np.random.seed(seed)
-    n_trial_types = np.random.choice(len(np.unique(trial_type)), min(len(np.unique(trial_type)), trials // 10), replace=False)
+    n_trial_types = np.random.choice(len(np.unique(trial_type)), min(len(np.unique(trial_type)), trials // 10),
+                                     replace=False)
 
     # Initialize lists to store indices
     train_data_idx = []
@@ -200,7 +224,7 @@ def get_surrogate_data(train_spikes, train_velocity, trial_type, trials=50, spli
 
     # Calculate the number of trials per condition for train and test
     trials_per_condition_train = int(np.floor(split * trials / len(n_trial_types)))
-    trials_per_condition_test = int(np.ceil((1-split) * trials / len(n_trial_types)))
+    trials_per_condition_test = int(np.ceil((1 - split) * trials / len(n_trial_types)))
 
     # Select indices for train and test data
     for i in n_trial_types:
@@ -252,7 +276,7 @@ def apply_gaussian_smoothing_2d(data, window_length, window_step):
     # Apply the Gaussian filter to each column (neuron) individually
     for i in range(data.shape[1]):  # Iterate over columns
         smoothed_data[:, i] = gaussian_filter1d(data[:, i], sigma=sigma, mode='reflect',
-                                                truncate=window_length/(2*sigma))
+                                                truncate=window_length / (2 * sigma))
 
     return smoothed_data
 
@@ -339,7 +363,7 @@ def plot_hand_trajectory_conditions(true_vel, pred_vel, labels, trial_number=5, 
     fig, ax = plt.subplots()
     unique_condition = np.unique(labels)
     # Choose 4 conditions and plot all trials in that condition
-    condition_index = np.random.choice(unique_condition, con_num)
+    condition_index = np.random.choice(unique_condition, con_num, replace=False)
     plot_index = []
 
     for i in condition_index:
@@ -352,7 +376,14 @@ def plot_hand_trajectory_conditions(true_vel, pred_vel, labels, trial_number=5, 
     ax.set_title('Predicted vs True Hand Trajectory')
     ax.set_xlabel('X position (mm)')
     ax.set_ylabel('Y position (mm)')
-    ax.legend(['True', 'Predicted'])
+    ax.legend(['Condition ' + str(i) for i in condition_index])
+    # Change color of legend
+    for i in range(len(condition_index)):
+        ax.get_legend().get_texts()[i].set_color(_get_color_for_condition(condition_index[i],
+                                                                          np.min(labels),
+                                                                          np.max(labels)))
+
+    fig.suptitle('Hand Trajectory', fontsize=20)
     plt.show()
 
 
@@ -411,6 +442,148 @@ def convert_angle_mag_to_velocity(angles, magnitudes):
     return velocities
 
 
+def plot_latent_states(latent_states, trial_type, trial_num=5, con_num=4, seed=2023):
+    '''
+    Plot latent states in 3D and choose con_num conditions randomly and plot trial_num trials within that condition
+    :param latent_states:
+    :param trial_type:
+    :param trial_num:
+    :param con_num:
+    :param seed:
+    :return:
+    '''
+    # Set seed
+    np.random.seed(seed)
+    fig, ax = plt.subplots()
+
+    unique_condition = np.unique(trial_type)
+    # Choose 4 conditions and plot all trials in that condition
+    condition_index = np.random.choice(unique_condition, con_num, replace=False)
+    plot_index = []
+
+    for i in condition_index:
+        plot_index.extend(np.where(trial_type == i)[0][:trial_num])
+
+    ax = fig.add_subplot(111, projection='3d')
+    for i in plot_index:
+        color = _get_color_for_condition(trial_type[i], np.min(trial_type), np.max(trial_type))
+        ax.plot(latent_states[i, :, 0], latent_states[i, :, 1], latent_states[i, :, 2],
+                color=color, label='Condition ' + str(trial_type[i]))
+    ax.set_title('Latent States')
+    ax.set_xlabel('Latent State 1')
+    ax.set_ylabel('Latent State 2')
+    ax.set_zlabel('Latent State 3')
+    ax.legend(['Condition ' + str(i) for i in condition_index])
+    # Change color of legend
+    for i in range(len(condition_index)):
+        ax.get_legend().get_texts()[i].set_color(_get_color_for_condition(condition_index[i],
+                                                                          np.min(trial_type),
+                                                                          np.max(trial_type)))
+
+    fig.suptitle('Latent States 3D', fontsize=20)
+
+    plt.show()
+
+
+def plot_latent_states_1d(latent_states, trial_type, trial_num=5, con_num=4, seed=2023):
+    '''
+    Plot first 10 latent states in 1D and choose con_num conditions randomly and plot trial_num trials within that condition
+    :param latent_states:
+    :param trial_type:
+    :param trial_num:
+    :param con_num:
+    :param seed:
+    :return:
+    '''
+    # Set seed
+    np.random.seed(seed)
+    fig, ax = plt.subplots()
+    # Set figure larger
+    fig.set_size_inches(18.5, 10.5)
+
+    unique_condition = np.unique(trial_type)
+    # Choose 4 conditions and plot all trials in that condition
+    condition_index = np.random.choice(unique_condition, con_num, replace=False)
+    plot_index = []
+
+    for i in condition_index:
+        plot_index.extend(np.where(trial_type == i)[0][:trial_num])
+
+    for j in range(10):
+        # Plot latent states in each subplot
+        ax = fig.add_subplot(2, 5, j + 1)
+        for i in plot_index:
+            color = _get_color_for_condition(trial_type[i], np.min(trial_type), np.max(trial_type))
+            ax.plot(latent_states[i, :, j], color=color, label='Condition ' + str(trial_type[i]))
+        ax.set_title('Latent State ' + str(j + 1))
+        ax.set_xlabel('Time')
+        ax.set_ylabel('Latent State ' + str(j + 1))
+        ax.legend(['Condition ' + str(i) for i in condition_index])
+        # Change color of legend
+    for i in range(len(condition_index)):
+        ax.get_legend().get_texts()[i].set_color(_get_color_for_condition(condition_index[i],
+                                                                          np.min(trial_type),
+                                                                          np.max(trial_type)))
+
+    fig.suptitle('Latent States 1D', fontsize=20)
+    plt.show()
+
+
+def plot_raw_data(data, trial_type, con_num=4, neuron_num=5, seed=2023):
+    '''
+    Plot con_num conditions in each subplot and within each subplot plot neuron_num neurons and trial_num trials
+    :param data:
+    :param trial_type:
+    :param trial_num:
+    :param con_num:
+    :param neuron_num:
+    :param seed:
+    :return:
+    '''
+    # Set seed
+    np.random.seed(seed)
+    fig, ax = plt.subplots()
+    # Set figure larger
+    fig.set_size_inches(18.5, 10.5)
+
+    unique_condition = np.unique(trial_type)
+    # Choose con_num conditions and plot all trials in that condition
+    condition_index = np.random.choice(unique_condition, con_num, replace=False)
+    plot_index = [[]] * con_num
+    # create empty list for each condition
+    neuron_index = np.random.choice(data.shape[-1], neuron_num)
+
+    for i, j in enumerate(condition_index):
+        plot_index[i] = np.where(trial_type == j)[0]
+
+    for j, i in enumerate(condition_index):
+        # Plot raw data in each subplot
+        ax = fig.add_subplot(2, con_num // 2, j + 1)
+
+        for k in neuron_index:
+            # Calculate the trial average for each neuron
+            neuron_avg = np.mean(data[plot_index[j], :, k], axis=0)
+            neuron_conf_int = np.std(data[plot_index[j], :, k], axis=0) / np.sqrt(len(plot_index))
+            color = _get_color_for_condition(k, np.min(neuron_index), np.max(neuron_index))
+            ax.plot(neuron_avg, color=color, label='Neuron ' + str(k))
+            ax.fill_between(np.arange(len(neuron_avg)), neuron_avg - neuron_conf_int, neuron_avg + neuron_conf_int,
+                            color=color, alpha=0.2)
+
+        ax.set_title('Condition ' + str(i))
+        ax.set_xlabel('Time')
+        ax.set_ylabel('Firing Rate')
+        ax.legend(['Neuron ' + str(i) for i in neuron_index])
+        # Change color of legend
+    for i in range(len(neuron_index)):
+        ax.get_legend().get_texts()[i].set_color(_get_color_for_condition(neuron_index[i],
+                                                                          np.min(neuron_index),
+                                                                          np.max(neuron_index)))
+
+    # Add big title
+    fig.suptitle('Raw Data', fontsize=20)
+    plt.show()
+
+
 def cal_R_square(Y_train, Y_test):
     '''
     Calculate R square
@@ -433,8 +606,72 @@ def cal_R_square(Y_train, Y_test):
     return R_square
 
 
-if __name__ == '__main__':
+def add_noise(data, noise_level):
+    """
+    Add Gaussian noise to the data.
 
+    Parameters:
+    - data: NumPy array, input data to which noise will be added.
+    - noise_level: float, controls the standard deviation of the Gaussian noise.
+
+    Returns:
+    - noisy_data: NumPy array, data with added noise.
+    """
+    noise = noise_level * np.random.randn(*data.shape)
+    noisy_data = data + noise
+    return noisy_data
+
+
+def noisy_bootstrapping(X, y, num_bootstrap_samples, noise_level, stack=True):
+    """
+    Perform noisy bootstrapping for regression problems.
+
+    Parameters:
+    - X: NumPy array, feature variable data.
+    - y: NumPy array, target variable data.
+    - num_bootstrap_samples: int, number of bootstrap samples to generate.
+    - noise_level: float, controls the standard deviation of the Gaussian noise.
+
+    Returns:
+    - X_bootstrapped: NumPy array, combined feature variable data.
+    - y_bootstrapped: NumPy array, combined target variable data.
+    """
+    X_bootstrapped = []
+    y_bootstrapped = []
+
+    for _ in range(num_bootstrap_samples):
+        # Randomly select a subset of the training data with replacement
+        indices = np.random.choice(len(X), len(X), replace=True)
+
+        # Add noise to the features and target variable
+        X_noisy = add_noise(X[indices], noise_level * np.std(X, axis=0))
+        y_noisy = add_noise(y[indices], noise_level * np.std(y, axis=0))
+
+        X_bootstrapped.append(X_noisy)
+        y_bootstrapped.append(y_noisy)
+
+    # Flatten the lists to create NumPy arrays
+    X_bootstrapped = np.concatenate(X_bootstrapped)
+    y_bootstrapped = np.concatenate(y_bootstrapped)
+
+    if stack == True:
+        # Combine the noisy samples with the original data
+        X_combined = np.vstack([X, X_bootstrapped])
+        y_combined = np.vstack([y, y_bootstrapped])
+
+    else:
+        X_combined = X_bootstrapped
+        y_combined = y_bootstrapped
+
+    # Shuffle the combined data
+    shuffle_indices = np.random.permutation(len(X_combined))
+    X_combined = X_combined[shuffle_indices]
+    y_combined = y_combined[shuffle_indices]
+
+    return X_combined, y_combined
+
+
+if __name__ == '__main__':
     ########## test function ##########
     dataset = import_dataset('Jenkins_small_train.nwb')
 
@@ -445,4 +682,3 @@ if __name__ == '__main__':
     trial_condition = dataset.trial_info.set_index('trial_type').index.tolist()
 
     X, X_test, Y, Y_test, X_label, X_test_label = get_surrogate_data(rate, vel, trial_condition, trials=50)
-

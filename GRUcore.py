@@ -37,6 +37,7 @@ class BiGRU(torch.nn.Module):
         # Set up the cosine learning rate scheduler
         lr_min = learningRate * 0.1
         self.scheduler = CosineAnnealingLR(self.optimizer, T_max=100, eta_min=lr_min)
+
     def forward(self, xt):
         xt = xt.to(self.device, non_blocking=True)
         gruoutput, h = self.gru(xt)
