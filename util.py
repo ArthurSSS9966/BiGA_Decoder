@@ -671,7 +671,7 @@ def noisy_bootstrapping(X, y, num_bootstrap_samples, noise_level, stack=True):
     return X_combined, y_combined
 
 
-def noisy_bootstrapping_condition(X, Y, trial_type, num_bootstrap_samples, noise_level=0.1):
+def noisy_bootstrapping_condition(X, Y, trial_type, num_bootstrap_samples, noise_level=0.1, stack = True):
     '''
     Add noise to each condition and perform bootstrapping
     :param X:
@@ -731,10 +731,14 @@ def noisy_bootstrapping_condition(X, Y, trial_type, num_bootstrap_samples, noise
     Y_bootstrapped = np.concatenate(Y_bootstrapped)
     trial_type_bootstrapped = np.concatenate(trial_type_bootstrapped)
     # Combine the noisy samples with the original data
-    X_combined = np.vstack([X, X_bootstrapped])
-    Y_combined = np.vstack([Y, Y_bootstrapped])
-    trial_type_combined = np.hstack([trial_type, trial_type_bootstrapped])
-
+    if stack == True:
+        X_combined = np.vstack([X, X_bootstrapped])
+        Y_combined = np.vstack([Y, Y_bootstrapped])
+        trial_type_combined = np.hstack([trial_type, trial_type_bootstrapped])
+    else:    
+        X_combined = X_bootstrapped
+        Y_combined = Y_bootstrapped
+        trial_type_combined =  trial_type_bootstrapped
     # Shuffle the combined data
     shuffle_indices = np.random.permutation(len(X_combined))
     X_combined = X_combined[shuffle_indices]
