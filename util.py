@@ -606,7 +606,7 @@ def cal_R_square(Y_train, Y_test):
     return R_square
 
 
-def add_noise(data, noise_level):
+def add_noise(data, noise_level, seed = 2023):
     """
     Add Gaussian noise to the data.
 
@@ -617,12 +617,13 @@ def add_noise(data, noise_level):
     Returns:
     - noisy_data: NumPy array, data with added noise.
     """
+    np.random.seed(seed)
     noise = noise_level * np.random.randn(*data.shape)
     noisy_data = data + noise
     return noisy_data
 
 
-def noisy_bootstrapping(X, y, num_bootstrap_samples, noise_level, stack=True):
+def noisy_bootstrapping(X, y, num_bootstrap_samples, noise_level, stack=True, seed = 2023):
     """
     Perform noisy bootstrapping for regression problems.
 
@@ -636,6 +637,7 @@ def noisy_bootstrapping(X, y, num_bootstrap_samples, noise_level, stack=True):
     - X_bootstrapped: NumPy array, combined feature variable data.
     - y_bootstrapped: NumPy array, combined target variable data.
     """
+    np.random.seed(seed)
     X_bootstrapped = []
     y_bootstrapped = []
 
@@ -671,7 +673,7 @@ def noisy_bootstrapping(X, y, num_bootstrap_samples, noise_level, stack=True):
     return X_combined, y_combined
 
 
-def noisy_bootstrapping_condition(X, Y, trial_type, num_bootstrap_samples, noise_level=0.1, stack = True):
+def noisy_bootstrapping_condition(X, Y, trial_type, num_bootstrap_samples, noise_level=0.1, stack = True, seed = 2023):
     '''
     Add noise to each condition and perform bootstrapping
     :param X:
@@ -681,8 +683,8 @@ def noisy_bootstrapping_condition(X, Y, trial_type, num_bootstrap_samples, noise
     :param noise_level:
     :return:
     '''
-
-    def add_gaussian_noise(data, std_vec, noise_level):
+    np.random.seed(seed)
+    def add_gaussian_noise(data, std_vec, noise_level, seed = 2023):
         """
         Adds Gaussian noise to the dataset.
 
@@ -690,6 +692,7 @@ def noisy_bootstrapping_condition(X, Y, trial_type, num_bootstrap_samples, noise
         :param std_vec: 2D standard deviation vector with shape (T, D)
         :return: Data with added noise
         """
+        np.random.seed(seed)
         N, T, D = data.shape
 
         # Check if std_vec has the correct shape
