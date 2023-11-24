@@ -6,10 +6,10 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 
 
 class PositionalEncoding(torch.nn.Module):
-    def __init__(self,hiddendim,lens):
+    def __init__(self,hiddendim,lens, device):
         super(PositionalEncoding,self).__init__()
         self.hiddendim = hiddendim
-        self.positional_encoding = self.generate_positional_encoding(hiddendim,lens)
+        self.positional_encoding = self.generate_positional_encoding(hiddendim,lens).to(device,non_blocking=True)
         
     def generate_positional_encoding(self,hiddendim,lens):
         pe = torch.zeros(lens,hiddendim)
@@ -64,7 +64,7 @@ class TransformerModel(torch.nn.Module):
         #self.embedding = nn.Linear(self.input_dim,self.hiddendim).to(self.device,non_blocking=True)
         self.middle_dim = middle_dim
         self.embeddingv = nn.Linear(self.output_dim,self.hiddendim).to(self.device,non_blocking=True)
-        self.position_encode = PositionalEncoding(self.hiddendim,self.timestep)
+        self.position_encode = PositionalEncoding(self.hiddendim,self.timestep, self.device)
 
         self.encoder_layer = nn.TransformerEncoderLayer(d_model=self.hiddendim, nhead=nhead, batch_first=True)
         self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=self.num_layers)

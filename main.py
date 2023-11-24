@@ -14,7 +14,7 @@ from GRUcore import BiGRU
 if __name__ == '__main__':
     ##############################Parameter Initialization##############################################
     state_dimensions = 60  # number of latent states
-    N_E = 200  # total samples
+    N_E = 600  # total samples
     N_Epochs = 20  # epochs
     GRU_Epochs = 1600  # epochs
     GRU_hidden_dim = 60  # hidden dimension
@@ -56,7 +56,7 @@ if __name__ == '__main__':
                                                                      trials=N_E,
                                                                      split=train_split)
 
-    X,Y,X_label = noisy_bootstrapping_condition(X,Y,X_label, num_bootstrap_samples=3, noise_level=0.1)
+    # X,Y,X_label = noisy_bootstrapping_condition(X,Y,X_label, num_bootstrap_samples=3, noise_level=0.1)
     # X, Y = noisy_bootstrapping(X, Y, num_bootstrap_samples=5, noise_level=0.1, stack=False)
 
     X_test_con = np.array([X_test[i] for i in range(len(X_test))])
@@ -132,7 +132,7 @@ if __name__ == '__main__':
 
     plot_raw_data(back_predict_LLS[:, 1:, :], X_test_label, con_num=6, neuron_num=5,
                   seed=14, label='Back Predicted Dataset using EM')
-    plot_hand_trajectory_conditions(Y_test, back_predict_LLS, X_test_label, trial_number=4, seed=14)
+    plot_hand_trajectory_conditions(Y_test, back_predict_LLS, X_test_label, trial_number=4, seed=14, label='EM Test')
 
     ##############################Method 2: KF preidctor Initialization##############################################
 
@@ -147,7 +147,7 @@ if __name__ == '__main__':
     plot_raw_data(back_pred_KF[:, 1:, :], X_test_label,
                   con_num=6, neuron_num=5, seed=14,
                   label='Back Predicted Dataset using Kalman Filter')
-    plot_hand_trajectory_conditions(Y_test, back_pred_KF, X_test_label, trial_number=4, seed=14)
+    plot_hand_trajectory_conditions(Y_test, back_pred_KF, X_test_label, trial_number=4, seed=14, label='KF Test')
 
     # ##############################Save After_EM_data##############################################    
     np.savez('afterEM_dataset.npz', X=X, X_test=X_test, Y=Y, Y_test=Y_test)
@@ -192,10 +192,10 @@ if __name__ == '__main__':
     print('NRMSE for shuffled velocity:', rmse_vel_shuffled)
 
     # Plot hand trajectory and True value
-    plot_hand_trajectory_conditions(hand_velocity_gru, Y_test, X_test_label, trial_number=4, seed=14)
+    plot_hand_trajectory_conditions(hand_velocity_gru, Y_test, X_test_label, trial_number=4, seed=14, label='GRU Test')
 
     # Plot training hand trajectory and True value
-    plot_hand_trajectory_conditions(hand_velocity_gru_train, Y, X_label, trial_number=10, seed=14)
+    plot_hand_trajectory_conditions(hand_velocity_gru_train, Y, X_label, trial_number=10, seed=14, label='GRU Train')
 
     # ##############################Transformer Initialization##############################################
     #

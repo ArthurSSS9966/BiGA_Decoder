@@ -348,7 +348,7 @@ def _get_color_for_condition(condition, min_condition, max_condition):
     return colormap(norm(condition))
 
 
-def plot_hand_trajectory_conditions(true_vel, pred_vel, labels, trial_number=5, con_num=4, seed=2023):
+def plot_hand_trajectory_conditions(true_vel, pred_vel, labels, trial_number=5, con_num=4, seed=2023, label = ' '):
     '''
     Select 5 conditions and plot at most 10 trials within that condition
     :param true_vel:
@@ -374,7 +374,7 @@ def plot_hand_trajectory_conditions(true_vel, pred_vel, labels, trial_number=5, 
         # Choose a random trial
         color = _get_color_for_condition(labels[i], np.min(labels), np.max(labels))
         _plot_hand_trajectory(pred_vel[i], true_vel[i], ax, plot_color=color)
-    ax.set_title('Predicted vs True Hand Trajectory')
+    ax.set_title('Predicted vs True Hand Trajectory ' + label)
     ax.set_xlabel('X position (mm)')
     ax.set_ylabel('Y position (mm)')
     ax.legend(['Condition ' + str(i) for i in condition_index])
