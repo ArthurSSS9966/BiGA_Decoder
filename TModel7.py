@@ -67,7 +67,8 @@ class TransformerModel(torch.nn.Module):
         self.position_encode = PositionalEncoding(self.hiddendim,self.timestep, self.device)
 
         self.encoder_layer = nn.TransformerEncoderLayer(d_model=self.hiddendim, nhead=nhead, batch_first=True)
-        self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=self.num_layers)
+        self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer,
+                                                         num_layers=self.num_layers).to(self.device, non_blocking=True)
 
         self.fc_out = nn.Linear(self.hiddendim, self.middle_dim).to(self.device, non_blocking=True)
         self.fc_out1 = nn.Linear(self.middle_dim, self.middle_dim).to(self.device, non_blocking=True)
