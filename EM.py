@@ -4,11 +4,13 @@ import matplotlib.pyplot as plt
 from sklearn.linear_model import Ridge
 from sklearn.model_selection import GridSearchCV
 from tqdm import tqdm
-
+import numpy.linalg as lin
+import warnings
 
 class em_core:
 
     def __init__(self, data, n_dim=20):
+        self.kf_parameter = None
         self.model = None
         self.data = data
         self.n_dim = n_dim
@@ -59,7 +61,7 @@ class em_core:
 
         print('EM algorithm finished in', time() - sttime, 'seconds')
 
-    def cal_latent_states(self, input_data, current=True):
+    def cal_latent_states(self, input_data, current=True, verbose = False):
         '''
 
         :param data:
@@ -108,7 +110,8 @@ class em_core:
         x_curr_trial = np.array(x_curr_trial)
         x_pred_trial = np.array(x_pred_trial)
 
-        print('Prediction finished in', time() - sttime, 'seconds')
+        if verbose:
+            print('Latent States Calculated in', time() - sttime, 'seconds')
 
         if current:
             return x_curr_trial
@@ -131,7 +134,6 @@ class em_core:
             y_pred[i] = np.dot(C, x_pred[i])
 
         return y_pred
-
 
     def fit(self, spike_data, move, concatenate=False, **kwargs):
         if concatenate == False:
@@ -158,6 +160,27 @@ class em_core:
             move = np.array([move[i] for i in range(len(move))])
             move = move.reshape(-1, move.shape[-1])
             self.model.fit(x_latent, move)
+
+    def kalman_train(self, letent_state, velocity):
+        self.kf_parameter = kal_fit(velocity, letent_state)
+        em_parameter = {'C_orth' : self.C_values[-1], 'R': self.R_values[-1]}
+        self.M, self.kf = get_Mmatrix(em_parameter, self.kf_parameter)
+
+    def kalman_predict(self, spike_data, v_0):
+        velocity = decode_KF_sgtrial(self.M, spike_data, v_0)
+        return velocity
+
+    def kalman_predict_all(self, spike_data, v_0):
+        '''
+
+        :param spike_data: single trial spike data with shape (timesteps, n_dim)
+        :param v_0: initial velocity (if not known can use the average of the training velocity)
+        :return:
+        '''
+        vel = list([v_0])
+        while len(vel) < len(spike_data):
+            vel.append(self.kalman_predict(spike_data[len(vel)], vel[-1][:]))
+        return np.array(vel)
 
     def cal_R_square(self, spike_data, move, concatenate=False):
         if concatenate == False:
@@ -376,9 +399,6 @@ def M_step(Y_total, X_total, P_1_total, P_2_total, T):
     return mu, K, A, C, Q, R
 
 
-
-
-
 def EM(A_initial, C_initial, Q_initial, R_initial, state_initial, state_noise_initial, Y, T, n_iters=1000):
     '''
 
@@ -462,6 +482,163 @@ def EM(A_initial, C_initial, Q_initial, R_initial, state_initial, state_noise_in
         print('Log likelihood increase stopped at iteration %d', n_iters)
 
     return initial_state_comb, initial_noise_comb, A_values, C_values, Q_values, R_values, log_likelihood
+
+
+def kal_fit(x,y):
+    '''
+    Use latent states and kinematics data to find kalman filter parameters
+    :param x: kinematics data for each trial
+    :param y: latent state for each trial
+    :return: kf: Kalman filter paremeter set:
+        miu_1,V1 as the covariance matrix of the initial position of the training set
+        A as the matrix for state transition
+        C and d as encoding matrix for neural data
+        x_{t+1} = Ax_t + w_t
+        y_t = Cx_t + d + v_t ,
+        R and Q as the covariance matrix for w_t and v_t
+    Originally from William Bishop
+    Author: Xiecheng Shao
+    '''
+
+    # Transpose second and third dimension of x and y
+    x = np.array([x[i].T for i in range(0,len(x))])
+    y = np.array([y[i].T for i in range(0,len(y))])
+
+    #Learn the initial distribution of kinematics data
+    x0 = [x[i][:,0] for i in range(0,len(x))]
+    x0 = np.vstack(x0[:])
+    mu_1 = np.mean(x0,axis=0)
+    V_1 = np.cov(x0.T)
+
+    #Learn covariance matrix for state transition noise
+    x_first = [x[i][:,0:-1] for i in range(0,len(x))]
+    x_first = np.hstack(x_first[:])
+    x_second = [x[i][:,1:] for i in range(0,len(x))]
+    x_second = np.hstack(x_second[:])
+    A = lin.lstsq(x_first.T,x_second.T,rcond=None)[0]
+    x_secpred = np.dot(A,x_first)
+    x_delt = x_secpred - x_second
+    Q = np.cov(x_delt)
+
+    #Calculate C and d
+    x_all = np.hstack(x[:])
+    tep = np.ones((1,len(x_all.T)))
+    x_all = np.vstack((x_all,tep))
+    y_all = np.hstack(y[:])
+    Cd = lin.lstsq(x_all.T,y_all.T,rcond=None)[0]
+    Cd = Cd.T
+    C = Cd[:,0:-1]
+    d = Cd[:,-1]
+
+    #Calculate R
+    ypred = np.dot(Cd,x_all)
+    ydelta = y_all - ypred
+    R = np.cov(ydelta)
+
+    kf = Kfclass(mu_1,V_1,A,Q,C,d,R,None)
+
+    return kf
+
+
+def get_Mmatrix(fapara,kfpara):
+    '''
+    :param fapara: Factor Analysis parameters, which should contain : C,d and R : see extra_traj.py
+    :param kfpara: Kalman Filter parameters, which should contain: A,C,d,R,Q,V1,mu1 : see kal_fit above
+    :return: Mmartrix: Decoding matrix with M2,M1,M0
+    The code follows the criteria of :
+        x_t = M_2y_t + M_1x_{t-1} + M_0
+    Where x_t is kinematics data and y_t is spike bin count
+    For the first step, x_{t-1} will be set to mu_1
+    Originally from William Bishop
+    Author: Xiecheng Shao
+    '''
+
+    faC = fapara['C_orth']
+    faR = fapara['R']
+    kfA = getattr(kfpara,'A')
+    kfC = getattr(kfpara,'C')
+    kfd = getattr(kfpara,'d')
+    kfR = getattr(kfpara,'R')
+    kfQ = getattr(kfpara,'Q')
+    kfV1 = getattr(kfpara,'V1')
+    kfmiu1 = getattr(kfpara,'mu_1')
+
+    maxstep = 1e6
+    tol = 1e-8
+
+    #Calculate beta
+    beta = lin.lstsq(np.dot(faC,faC.T)+faR,faC,rcond=None)[0].T
+
+    #Find Converged Kalman Gain
+    prevGain = np.ones(np.shape(kfC.T))*np.inf
+    delta = np.inf
+    one_setpV = kfV1
+    curstep = 1
+
+    while (curstep < maxstep + 1) & (delta > tol):
+        curGain = lin.lstsq((kfR + np.dot(np.dot(kfC,one_setpV),kfC.T)).T, np.dot(one_setpV,kfC.T).T, rcond=None)[0]
+        curGain = curGain.T
+        curV = one_setpV - np.dot(np.dot(curGain,kfC),one_setpV)
+        one_setpV = np.dot(np.dot(kfA,curV),kfA.T) + kfQ
+        # one_setpV.dropna(inplace=True)
+        delta = np.sum(np.square(curGain - prevGain))
+        prevGain = curGain
+        curstep += 1
+        print('delta is ' + str(delta))
+
+    if delta > tol:
+        warnings.warn('Unable to find Kalman gain')
+    else:
+        print('Total loop is '+ str(curstep))
+    kf = Kfclass(kfmiu1,kfV1,kfA,kfQ,kfC,kfd,kfR,curGain)
+
+    #Calculate M Matrix
+    M2 = np.dot(curGain,beta)
+    M1 = np.dot(np.eye(len(kfA)) - np.dot(curGain,kfC),kfA)
+    M0 = np.dot(-curGain,kfd[:,None])
+
+    Mmatrix = Mmatclass(M0,M1,M2,kfmiu1)
+
+    return Mmatrix, kf
+
+
+def decode_KF_sgtrial(Mmatrix,data,x0):
+    '''
+    :param Mmatrix:
+    :param data:
+    :param x0: initial hand velocity
+    :return: kinematics: decoded hand velocity
+    This function decode neural spike count to kinematics data using the Mmatrix, see: get_Mmatrix. However, this function
+    only serves for off-line decoding as the number of decoding will be determined by the input
+    '''
+
+    M2 = getattr(Mmatrix,'M2')
+    M1 = getattr(Mmatrix, 'M1')
+    M0 = getattr(Mmatrix, 'M0')
+
+    kinematics = np.dot(M2,data) + np.dot(M1,x0) + M0[:,0]
+
+    return kinematics
+
+
+class Kfclass():
+    def __init__(self,mu_1,V1,A,Q,C,d,R,curGain):
+        self.mu_1 = mu_1
+        self.V1 = V1
+        self.A = A
+        self.Q = Q
+        self.C = C
+        self.d = d
+        self.R = R
+        self.curGain = curGain
+
+
+class Mmatclass():
+    def __init__(self,M0,M1,M2,miu1):
+        self.M0 = M0
+        self.M1 = M1
+        self.M2 = M2
+        self.mu1 = miu1
 
 
 if __name__ == '__main__':

@@ -85,7 +85,7 @@ class TransformerModel(torch.nn.Module):
         #xt = self.embedding(xt)
         trans_out = self.position_encode(xt)
 
-        #trans_out = self.transformer_encoder(xt)
+        trans_out = self.transformer_encoder(trans_out)
         trans_out = self.fc_out(trans_out)
         trans_out = self.fc_out1(trans_out)
         trans_out = self.fc_out2(trans_out)
@@ -93,7 +93,6 @@ class TransformerModel(torch.nn.Module):
         velocity = self.fc_out4(trans_out)
 
         return velocity
-
 
     def train_fit(self, N_epoches):
         '''

@@ -100,7 +100,7 @@ def calculate_angles_and_velocities(velocities):
     return np.column_stack((angles_deg, magnitudes))
 
 
-def pre_process_spike(spikes, vel, dataset, window_step=50, overlap=False, smooth=True, **kwargs):
+def pre_process_spike(spikes, vel, dataset, window_step=50, overlap=False, smooth=True, demean=False, **kwargs):
     '''
 
     :param spikes:
@@ -141,6 +141,7 @@ def pre_process_spike(spikes, vel, dataset, window_step=50, overlap=False, smoot
         else:
             rate[i] = down_spikes[i] / dataset.bin_width * 1000 / kwargs.get('window_size',
                                                                              window_step)  # Convert to Hz
+
 
     return rate, down_vel
 
@@ -606,23 +607,6 @@ def cal_R_square(Y_train, Y_test):
     return R_square
 
 
-def add_noise(data, noise_level, seed = 2023):
-    """
-    Add Gaussian noise to the data.
-
-    Parameters:
-    - data: NumPy array, input data to which noise will be added.
-    - noise_level: float, controls the standard deviation of the Gaussian noise.
-
-    Returns:
-    - noisy_data: NumPy array, data with added noise.
-    """
-    np.random.seed(seed)
-    noise = noise_level * np.random.randn(*data.shape)
-    noisy_data = data + noise
-    return noisy_data
-
-
 def noisy_bootstrapping(X, y, num_bootstrap_samples, noise_level, stack=True, seed = 2023):
     """
     Perform noisy bootstrapping for regression problems.
@@ -637,6 +621,22 @@ def noisy_bootstrapping(X, y, num_bootstrap_samples, noise_level, stack=True, se
     - X_bootstrapped: NumPy array, combined feature variable data.
     - y_bootstrapped: NumPy array, combined target variable data.
     """
+
+    def add_noise(data, noise_level, seed=2023):
+        """
+        Add Gaussian noise to the data.
+
+        Parameters:
+        - data: NumPy array, input data to which noise will be added.
+        - noise_level: float, controls the standard deviation of the Gaussian noise.
+
+        Returns:
+        - noisy_data: NumPy array, data with added noise.
+        """
+        np.random.seed(seed)
+        noise = noise_level * np.random.randn(*data.shape)
+        noisy_data = data + noise
+        return noisy_data
     np.random.seed(seed)
     X_bootstrapped = []
     y_bootstrapped = []
@@ -748,6 +748,7 @@ def noisy_bootstrapping_condition(X, Y, trial_type, num_bootstrap_samples, noise
     trial_type_combined = trial_type_combined[shuffle_indices]
     Y_combined = Y_combined[shuffle_indices]
     return X_combined, Y_combined, trial_type_combined
+
 
 if __name__ == '__main__':
     ########## test function ##########

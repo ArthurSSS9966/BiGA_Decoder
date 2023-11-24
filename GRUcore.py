@@ -11,6 +11,7 @@ class BiGRU(torch.nn.Module):
         self.loss_fn = torch.nn.MSELoss()
 
     def load_data(self, X_train, X_test, y_train, y_test):
+
         self.X_train = X_train
         self.X_test = X_test
         self.y_train = y_train
@@ -23,6 +24,7 @@ class BiGRU(torch.nn.Module):
         self.y_test = torch.from_numpy(self.y_test).float().to(self.device, non_blocking=True)
 
     def Build(self, hiddendim, learningRate=0.001, weight_decay=0.0001):
+
         inputdim = self.X_train.shape[2]
         outputsize = self.y_train.shape[2]
 
@@ -82,6 +84,7 @@ class BiGRU(torch.nn.Module):
         return MSE_cv_linear_epoch, MSE_train_linear_epoch
 
     def predict_velocity(self, x_latent):
+
         self.eval()
         with torch.no_grad():
             v_predict, hidden_states = self.gru(x_latent)

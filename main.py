@@ -6,13 +6,14 @@ from sklearn.model_selection import GridSearchCV
 
 from util import import_dataset, get_spikes_and_velocity, pre_process_spike, \
     get_surrogate_data, plot_hand_trajectory_conditions, cal_R_square, \
-    plot_latent_states, plot_latent_states_1d, plot_raw_data, encode_trial_type, noisy_bootstrapping_condition
+    plot_latent_states, plot_latent_states_1d, plot_raw_data, encode_trial_type, noisy_bootstrapping, \
+    noisy_bootstrapping_condition
 from EM import em_core
 from GRUcore import BiGRU
 
 if __name__ == '__main__':
     ##############################Parameter Initialization##############################################
-    state_dimensions = 20  # number of latent states
+    state_dimensions = 60  # number of latent states
     N_E = 200  # total samples
     N_Epochs = 20  # epochs
     GRU_Epochs = 1600  # epochs
@@ -31,7 +32,8 @@ if __name__ == '__main__':
     train_spikes, train_velocity = get_spikes_and_velocity(train_dataset, resample_size=5, smooth=True)
 
     train_spikes, train_velocity = pre_process_spike(train_spikes, train_velocity, train_dataset,
-                                                     window_step=5, overlap=True, window_size=15, smooth=False)
+                                                     window_step=5, overlap=True, window_size=15,
+                                                     smooth=False)
 
     trial_type = train_dataset.trial_info.set_index('trial_type').index.tolist()
     trial_var = train_dataset.trial_info.set_index('trial_version').index.tolist()
@@ -55,17 +57,20 @@ if __name__ == '__main__':
                                                                      split=train_split)
 
     X,Y,X_label = noisy_bootstrapping_condition(X,Y,X_label, num_bootstrap_samples=3, noise_level=0.1)
+    # X, Y = noisy_bootstrapping(X, Y, num_bootstrap_samples=5, noise_level=0.1, stack=False)
 
     X_test_con = np.array([X_test[i] for i in range(len(X_test))])
     X_test_con = X_test_con.reshape(-1, X_test_con.shape[-1])
     Y_test_con = np.array([Y_test[i] for i in range(len(Y_test))])
     Y_test_con = Y_test_con.reshape(-1, Y_test_con.shape[-1])
 
-    plot_raw_data(X_test, X_test_label, con_num=6, neuron_num=5, seed=14, label='Test Dataset')
+    plot_raw_data(X, X_test_label, con_num=6, neuron_num=5, seed=14, label='Train Raw Dataset')
 
-
+    plot_raw_data(X_test, X_test_label, con_num=6, neuron_num=5, seed=14, label='Test Raw Dataset')
+    plot_raw_data(Y_test, X_test_label, con_num=6, neuron_num=5, seed=14, label='Test Velocity Dataset')
 
     ##############################Baseline case for LLS##############################################
+
     # Calculate the baseline case for LLS
     baseline_X = np.array([X[i] for i in range(len(X))])
     baseline_X = baseline_X.reshape(-1, baseline_X.shape[-1])
@@ -85,7 +90,7 @@ if __name__ == '__main__':
     # plot_hand_velocity(baseline_predict, Y_test, trial_num=10)
 
     # Plot testing hand trajectory and True value
-    plot_hand_trajectory_conditions(baseline_predict, Y_test, X_test_label, trial_number=4, seed=14)
+    plot_hand_trajectory_conditions(Y_test, baseline_predict, X_test_label, trial_number=4, seed=14)
 
     # Calculate NRMSE for baseline
     baseline_rmse = np.sqrt(np.mean((Y_test - baseline_predict) ** 2)) / np.sqrt(np.var(Y_test))
@@ -100,6 +105,7 @@ if __name__ == '__main__':
     print('R square for baseline testing:', baseline_r2)
 
     ##############################EM Initialization##################################################
+
     EM_class = em_core(X, n_dim=state_dimensions)
     EM_class.get_parameters(plot=True, n_iters=N_Epochs)
 
@@ -109,34 +115,43 @@ if __name__ == '__main__':
     latent_states = EM_class.cal_latent_states(X_test, current=False)
 
     # Plot latent states
-    plot_latent_states(latent_states[:,1:,:], X_test_label, trial_num=4, seed=14)
-    plot_latent_states_1d(latent_states[:,1:,:], X_test_label, trial_num=4, seed=14)
+    plot_latent_states(latent_states[:, 1:, :], X_test_label, trial_num=4, seed=14)
+    plot_latent_states_1d(latent_states[:, 1:, :], X_test_label, trial_num=4, seed=14)
+
+    ##############################Method 1: LLS with EM Initialization##################################################
+
+    EM_class.fit(X, Y)
 
     # One step ahead prediction for spike data
-    back_predict = np.array([EM_class.get_one_step_ahead_prediction(latent_states[i])
-                             for i in range(len(latent_states))])
+    back_predict_LLS = np.array([EM_class.predict_move(X_test[i])
+                                 for i in range(len(X_test))])
 
-    plot_raw_data(back_predict[:,1:,:], X_test_label, con_num=6, neuron_num=5, seed=14, label='Back Predicted Dataset')
+    # Calculate R square for EM training
+    EM_r2_train = cal_R_square(back_predict_LLS, Y_test)
+    print('R square for EM training:', EM_r2_train)
 
-    # Combine all trials for back_predict and X_test
-    back_predict_con = np.array([back_predict[i] for i in range(len(back_predict))])
-    back_predict_con = back_predict_con.reshape(-1, back_predict_con.shape[-1])
+    plot_raw_data(back_predict_LLS[:, 1:, :], X_test_label, con_num=6, neuron_num=5,
+                  seed=14, label='Back Predicted Dataset using EM')
+    plot_hand_trajectory_conditions(Y_test, back_predict_LLS, X_test_label, trial_number=4, seed=14)
 
-    plt.figure()
-    plt.plot(back_predict_con[:300, 0:5], label='Predicted', color='red')
-    plt.plot(X_test_con[:300, 0:5], label='True', color='black')
-    plt.title('Predicted vs True Spike Data, with dimension ' + str(EM_class.n_dim))
-    plt.legend(['Predicted', 'True'])
-    plt.show()
+    ##############################Method 2: KF preidctor Initialization##############################################
+
+    EM_class.kalman_train(EM_class.cal_latent_states(X, current=False), Y)
+
+    initial_velocity = np.mean(Y, axis=0)[0]
+    back_pred_KF = np.array([EM_class.kalman_predict_all(X[i], initial_velocity) for i in range(len(latent_states))])
+
+    KF_r2_train = cal_R_square(back_pred_KF, Y_test)
+    print('R square for EM training:', KF_r2_train)
+
+    plot_raw_data(back_pred_KF[:, 1:, :], X_test_label,
+                  con_num=6, neuron_num=5, seed=14,
+                  label='Back Predicted Dataset using Kalman Filter')
+    plot_hand_trajectory_conditions(Y_test, back_pred_KF, X_test_label, trial_number=4, seed=14)
 
     # ##############################Save After_EM_data##############################################    
-    np.savez('afterEM_dataset.npz',X=X,X_test = X_test,Y=Y,Y_test=Y_test)
-    npzfile = np.load("afterEM_dataset.npz")
-    X = npzfile['X']
-    X_test = npzfile['X_test']
-    Y = npzfile['Y']
-    Y_test = npzfile['Y_test']
-    
+    np.savez('afterEM_dataset.npz', X=X, X_test=X_test, Y=Y, Y_test=Y_test)
+
     # ##############################GRU Initialization##############################################
     #
     # # data input
@@ -181,3 +196,55 @@ if __name__ == '__main__':
 
     # Plot training hand trajectory and True value
     plot_hand_trajectory_conditions(hand_velocity_gru_train, Y, X_label, trial_number=10, seed=14)
+
+    # ##############################Transformer Initialization##############################################
+    #
+    from TModel7 import TransformerModel
+
+    # # data input
+    # X_train = EM_class.cal_latent_states(X, current=True)
+    Transformer_hidden_dim = 60
+    Transformer_Epochs = 200
+    X_test_Transformer = X_test_GRU
+    Transformer = TransformerModel(device=device)
+    Transformer.to(device, non_blocking=True)
+    Transformer.load_data(X_train, X_test_Transformer, Y, Y_test)
+    Transformer.Build(hiddendim=Transformer_hidden_dim, middle_dim=Transformer_hidden_dim, nhead=1, num_layers=2,
+                      learningRate=0.001, weight_decay=0.0001)
+    # Transformer.Build(hiddendim=Transformer_hidden_dim, nhead = 1,num_layers = 1, learningRate=0.001, weight_decay=0.0001)
+    train_mse, test_mse = Transformer.train_fit(Transformer_Epochs)
+
+    train_mse = train_mse.cpu().detach().numpy()
+    test_mse = test_mse.cpu().detach().numpy()
+
+    hand_velocity_Transformer_train = Transformer.predict_velocity(Transformer.X_train)
+    hand_velocity_Transformer = Transformer.predict_velocity(Transformer.X_test)
+
+    # Evaluate Transformer
+
+    # Calculate NRMSE for Transformer training velocity
+    rmse_train_vel_Transformer = np.sqrt(np.mean((hand_velocity_Transformer_train - Y) ** 2)) / np.sqrt(np.var(Y))
+    print('NRMSE for Transformer training velocity:', rmse_train_vel_Transformer)
+
+    # Calculate NRMSE for Transformer velocity
+    rmse_vel_Transformer = np.sqrt(np.mean((hand_velocity_Transformer - Y_test) ** 2)) / np.sqrt(np.var(Y_test))
+    print('NRMSE for Transformer test velocity:', rmse_vel_Transformer)
+
+    # Calculate R square for Transformer training velocity
+    r2_train_vel_Transformer = cal_R_square(hand_velocity_Transformer_train, Y)
+    print('R square for Transformer training velocity:', r2_train_vel_Transformer)
+
+    # Calculate R square for Transformer velocity
+    r2_vel_Transformer = cal_R_square(hand_velocity_Transformer, Y_test)
+    print('R square for Transformer testing velocity:', r2_vel_Transformer)
+
+    # Calculate NRMSE for a randomized shuffled trial version of hand_velocity
+    rmse_vel_shuffled = np.sqrt(np.mean((np.random.permutation(hand_velocity_Transformer) - Y_test) ** 2)) / np.sqrt(
+        np.var(Y_test))
+    print('NRMSE for shuffled velocity:', rmse_vel_shuffled)
+
+    # Plot hand trajectory and True value
+    plot_hand_trajectory_conditions(hand_velocity_Transformer, Y_test, X_test_label, trial_number=4, seed=14)
+
+    # Plot training hand trajectory and True value
+    plot_hand_trajectory_conditions(hand_velocity_Transformer_train, Y, X_label, trial_number=10, seed=14)
