@@ -6,6 +6,8 @@ import numpy as np
 import time
 from scipy.ndimage import gaussian_filter1d
 import statsmodels.api as sm
+import os
+import pickle
 
 
 def import_dataset(filepath, filetype='nwb'):
@@ -100,7 +102,7 @@ def calculate_angles_and_velocities(velocities):
     return np.column_stack((angles_deg, magnitudes))
 
 
-def pre_process_spike(spikes, vel, dataset, window_step=50, overlap=False, smooth=True, demean=False, **kwargs):
+def pre_process_spike(spikes, vel, dataset, window_step=50, overlap=False, smooth=True, **kwargs):
     '''
 
     :param spikes:
@@ -206,7 +208,7 @@ def _downsample_data(data, downsample_rate=5, overlap=False, **kwargs):
     return re_sampled_data
 
 
-def get_surrogate_data(train_spikes, train_velocity, trial_type, trials=50, split=0.8, seed=2023):
+def get_surrogate_data(train_spikes, train_velocity, trial_type, trials=200, split=0.8, seed=2023):
     '''
     :param train_spikes: Spike data for each trial.
     :param train_velocity: Velocity data for each trial.
@@ -214,10 +216,14 @@ def get_surrogate_data(train_spikes, train_velocity, trial_type, trials=50, spli
     :param trials: Total number of trials to select.
     :return: Surrogate data for training and testing.
     '''
+
     # Set seed
     np.random.seed(seed)
-    n_trial_types = np.random.choice(len(np.unique(trial_type)), min(len(np.unique(trial_type)), trials // 10),
+    n_trial_types = np.random.choice(np.unique(trial_type), min(len(np.unique(trial_type)), trials // 10),
                                      replace=False)
+
+    n_trial_types_test = n_trial_types[-7:]  # TODO: Comment Out For same condition
+    n_trial_types_train = n_trial_types[:-7]  # TODO: Comment Out For same condition
 
     # Initialize lists to store indices
     train_data_idx = []
@@ -227,12 +233,23 @@ def get_surrogate_data(train_spikes, train_velocity, trial_type, trials=50, spli
     trials_per_condition_train = int(np.floor(split * trials / len(n_trial_types)))
     trials_per_condition_test = int(np.ceil((1 - split) * trials / len(n_trial_types)))
 
-    # Select indices for train and test data
-    for i in n_trial_types:
-        idx = np.where(np.array(trial_type) == trial_type[i])[0]
+    # Select indices for train and test data  # TODO: Comment Out For same condition
+    for i in n_trial_types_train:
+        idx = np.where(np.array(trial_type) == i)[0]
         np.random.shuffle(idx)
         train_data_idx.extend(idx[:trials_per_condition_train])
-        test_data_idx.extend(idx[trials_per_condition_train:trials_per_condition_train + trials_per_condition_test])
+
+    for i in n_trial_types_test:
+        idx = np.where(np.array(trial_type) == i)[0]
+        np.random.shuffle(idx)
+        test_data_idx.extend(idx[:trials_per_condition_train])
+
+    # TODO: Uncomment for same condition
+    # for i in n_trial_types_train:
+    #     idx = np.where(np.array(trial_type) == i)[0]
+    #     np.random.shuffle(idx)
+    #     train_data_idx.extend(idx[:trials_per_condition_train])
+    #     test_data_idx.extend(idx[trials_per_condition_train:trials_per_condition_train + trials_per_condition_test])
 
     # Extracting training and testing data
     surrogate_data_train = np.array([train_spikes[i] for i in train_data_idx])
@@ -641,6 +658,9 @@ def noisy_bootstrapping(X, y, num_bootstrap_samples, noise_level, stack=True, se
     X_bootstrapped = []
     y_bootstrapped = []
 
+    if num_bootstrap_samples == 0:
+        return X, y
+
     for _ in range(num_bootstrap_samples):
         # Randomly select a subset of the training data with replacement
         indices = np.random.choice(len(X), len(X), replace=True)
@@ -750,14 +770,111 @@ def noisy_bootstrapping_condition(X, Y, trial_type, num_bootstrap_samples, noise
     return X_combined, Y_combined, trial_type_combined
 
 
+def save_EM_result(params, base_path, X, Y, X_test, Y_test, X_label, X_test_label, EM_model):
+    '''
+    Save EM result
+    :param parameters:
+    :param file_name:
+    :return:
+    '''
+
+    if not os.path.exists(base_path):
+        os.makedirs(base_path)
+
+    filename_parts = [f"{key}_{value}" for key, value in params.items()]
+    filename = "_".join(filename_parts) + ".npz"
+
+    # Combine the base path with the filename
+    full_path = base_path + filename if base_path else filename
+
+    combined_data = {
+        'X': X,
+        'Y': Y,
+        'X_test': X_test,
+        'Y_test': Y_test,
+        'X_label': X_label,
+        'X_test_label': X_test_label,
+        'EM_model': EM_model
+    }
+
+    # Save the data into pickle
+    with open(full_path, 'wb') as f:
+        pickle.dump(combined_data, f)
+
+    print(f"Data saved as {full_path}")
+
+
+def load_EM_result(base_path, params):
+    '''
+    Load EM result
+    :param file_name:
+    :return:
+    '''
+    # Load the data
+    filename_parts = [f"{key}_{value}" for key, value in params.items()]
+    filename = "_".join(filename_parts) + ".npz"
+
+    # Combine the base path with the filename
+    full_path = base_path + filename if base_path else filename
+
+    with open(full_path, 'rb') as file:
+        data = pickle.load(file)
+    return data
+
+
+def save_model_result(params, base_path, model, EM_model, X_test, Y_test, X_test_label):
+    '''
+    Save model result
+    :param parameters:
+    :param file_name:
+    :return:
+    '''
+
+    if not os.path.exists(base_path):
+        os.makedirs(base_path)
+
+    filename_parts = [f"{key}_{value}" for key, value in params.items()]
+    filename = "_".join(filename_parts) + ".npz"
+
+    # Combine the base path with the filename
+    full_path = base_path + filename if base_path else filename
+
+    # Save the data
+
+    combined_data = {
+        'model': model,
+        'EM_model': EM_model,
+        'X_test': X_test,
+        'Y_test': Y_test,
+        'X_test_label': X_test_label
+    }
+
+    # Save the data into pickle
+    with open(full_path, 'wb') as f:
+        pickle.dump(combined_data, f)
+
+    print(f"Data saved as {full_path}")
+
+
 if __name__ == '__main__':
     ########## test function ##########
-    dataset = import_dataset('Jenkins_small_train.nwb')
+    dataset = import_dataset('Jenkins_train.nwb')
 
     spike, vel = get_spikes_and_velocity(dataset, resample_size=5, smooth=True)
 
     rate, vel = pre_process_spike(spike, vel, dataset, window_step=5, overlap=False, window_size=5, smooth=False)
 
-    trial_condition = dataset.trial_info.set_index('trial_type').index.tolist()
+    trial_type = dataset.trial_info.set_index('trial_type').index.tolist()
+    trial_var = dataset.trial_info.set_index('trial_version').index.tolist()
 
-    X, X_test, Y, Y_test, X_label, X_test_label = get_surrogate_data(rate, vel, trial_condition, trials=50)
+    trial_type = encode_trial_type(trial_type, trial_var)
+
+    X, X_test, Y, Y_test, X_label, X_test_label = get_surrogate_data(rate,
+                                                                     vel,
+                                                                     trial_type,
+                                                                     trials=600,
+                                                                     split=0.8,
+                                                                     seed=14)
+
+    plot_raw_data(X, X_test_label, con_num=6, neuron_num=5, seed=12, label='Train Raw Dataset')
+    plot_raw_data(Y, X_test_label, con_num=6, neuron_num=5, seed=12, label='Train Velocity Dataset')

@@ -54,6 +54,7 @@ class TransformerModel(torch.nn.Module):
         activation = relu                   (default)
         norm_first                          (default)
         '''
+
         inputdim = self.X_train.shape[2]
         outputsize = self.y_train.shape[2]
         self.input_dim = inputdim
