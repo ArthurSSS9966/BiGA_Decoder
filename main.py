@@ -197,11 +197,17 @@ if __name__ == '__main__':
 
         # Plot the time cost and MSE
         plt.figure()
-        plt.plot(np.arange(20, 100, 20), Time_EM, 'r', label='Time Cost')
-        plt.plot(np.arange(20, 100, 20), MSE_EM, 'b', label='MSE')
-        plt.xlabel('Number of Latent States')
-        plt.ylabel('Time Cost/MSE')
-        plt.legend()
+        plt.plot(state_dimensions_combination, MSE_EM, 'b', label='MSE')
+        # Set two y-axis
+        ax1 = plt.gca()
+        ax2 = ax1.twinx()
+        ax2.plot(state_dimensions_combination, Time_EM, 'r', label='Time Cost')
+        ax1.set_xlabel('State Dimensions')
+        ax1.set_ylabel('MSE')
+        ax2.set_ylabel('Time Cost')
+        ax1.legend(loc='upper left')
+        ax2.legend(loc='upper right')
+        plt.title('MSE and Time Cost for EM')
         plt.show()
 
     # ##############################Load After_EM_data##############################################
