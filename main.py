@@ -60,11 +60,11 @@ if __name__ == '__main__':
     # 4) Predict hand velocity
 
     # Get the combination for N_E, noise_level, bootstrapping_sample
-    N_E_combination = np.arange(300, 1000, 200)
+    N_E_combination = np.arange(500, 1000, 200)
     noise_level_combination = np.arange(0.05, 0.2, 0.05)
     bootstrapping_sample_combination = np.arange(0, 5, 1)
-    state_dimensions_combination = np.arange(20, 100, 10)
-    # state_dimensions_combination = [60]
+    # state_dimensions_combination = np.arange(20, 100, 10)
+    state_dimensions_combination = [60]
     # N_E_combination = [600]
     # noise_level_combination = [0.1]
     # bootstrapping_sample_combination = [0]
