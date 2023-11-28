@@ -60,10 +60,15 @@ if __name__ == '__main__':
     # 4) Predict hand velocity
 
     # Get the combination for N_E, noise_level, bootstrapping_sample
-    N_E_combination = np.arange(200, 1000, 100)
+    N_E_combination = np.arange(300, 1000, 200)
     noise_level_combination = np.arange(0.05, 0.2, 0.05)
     bootstrapping_sample_combination = np.arange(0, 5, 1)
     state_dimensions_combination = np.arange(20, 100, 10)
+    # state_dimensions_combination = [60]
+    # N_E_combination = [600]
+    # noise_level_combination = [0.1]
+    # bootstrapping_sample_combination = [0]
+
     params_combination = itertools.product(N_E_combination, noise_level_combination, bootstrapping_sample_combination)
 
     # Major Loop that Needs to Run EM Starts here:
@@ -138,28 +143,29 @@ if __name__ == '__main__':
             start_time = time()
 
             EM_class = em_core(X, n_dim=state_dimensions)
-            EM_class.get_parameters(plot=True, n_iters=N_Epochs)
+            EM_class.get_parameters(plot=False, n_iters=N_Epochs)
 
             # TODO: Calculate Latent States for training data and plot to see grouping
 
             # Predict latent states
-            latent_states = EM_class.cal_latent_states(X_test, current=False)
-
-            # Plot latent states
-            plot_latent_states(latent_states[:, 1:, :], X_test_label, trial_num=4, seed=seed)
-            plot_latent_states_1d(latent_states[:, 1:, :], X_test_label, trial_num=4, seed=seed)
-
-            ##############################Method 1: LLS with EM Initialization#################################
-
-            EM_class.fit(X, Y)
-
-            # Calculate NRMSE for EM training
             latent_states_for_back_predict = EM_class.cal_latent_states(X_test, current=False)
             spike_predicted = np.array([EM_class.get_one_step_ahead_prediction(latent_states_for_back_predict[i])
                                         for i in range(len(latent_states_for_back_predict))])
 
             # Calcualte NRMSE
             EM_rmse = np.sqrt(np.mean((X_test - spike_predicted) ** 2)) / np.sqrt(np.var(X_test))
+
+            # Plot latent states
+            # plot_latent_states(latent_states[:, 1:, :], X_test_label, trial_num=4, seed=seed)
+            # plot_latent_states_1d(latent_states[:, 1:, :], X_test_label, trial_num=4, seed=seed)
+            Time_EM.append(time() - start_time)
+            MSE_EM.append(EM_rmse)
+            ##############################Method 1: LLS with EM Initialization#################################
+
+            # EM_class.fit(X, Y)
+
+            # Calculate NRMSE for EM training
+
 
             # # One step ahead prediction for spike data
             # back_predict_LLS = np.array([EM_class.predict_move(X_test[i])
@@ -192,29 +198,30 @@ if __name__ == '__main__':
                       'bootstrapping_sample': bootstrapping_sample}
             save_EM_result(params, EM_base_path, X, X_test, Y, Y_test, X_label, X_test_label, EM_class)
 
-            Time_EM.append(time() - start_time)
-            MSE_EM.append(EM_rmse)
 
-        # Plot the time cost and MSE
-        plt.figure()
-        plt.plot(state_dimensions_combination, MSE_EM, 'b', label='MSE')
-        # Set two y-axis
-        ax1 = plt.gca()
-        ax2 = ax1.twinx()
-        ax2.plot(state_dimensions_combination, Time_EM, 'r', label='Time Cost')
-        ax1.set_xlabel('State Dimensions')
-        ax1.set_ylabel('MSE')
-        ax2.set_ylabel('Time Cost')
-        ax1.legend(loc='upper left')
-        ax2.legend(loc='upper right')
-        plt.title('MSE and Time Cost for EM')
-        plt.show()
+
+        # # Plot the time cost and MSE
+        # plt.figure()
+        # plt.plot(state_dimensions_combination, MSE_EM, 'b', label='MSE')
+        # # Set two y-axis
+        # ax1 = plt.gca()
+        # ax2 = ax1.twinx()
+        # ax2.plot(state_dimensions_combination, Time_EM, 'r', label='Time Cost')
+        # ax1.set_xlabel('State Dimensions')
+        # ax1.set_ylabel('MSE')
+        # ax2.set_ylabel('Time Cost')
+        # ax1.legend(loc='upper left')
+        # ax2.legend(loc='upper right')
+        # plt.title('MSE and Time Cost for EM')
+        # plt.show()
 
     # ##############################Load After_EM_data##############################################
     ML_model_parameter_comb = itertools.product(state_dimensions_combination, N_E_combination,
                                                 noise_level_combination, bootstrapping_sample_combination)
-    GRU_hidden_dim_comb = np.arange(10, 100, 10)
-    Transformer_hidden_dim_comb = np.arange(10, 100, 10)
+    # GRU_hidden_dim_comb = np.arange(10, 100, 10)
+    # Transformer_hidden_dim_comb = np.arange(10, 100, 10)
+    GRU_hidden_dim_comb = [60]
+    Transformer_hidden_dim_comb = [60]
     GRU_base_path = 'GRU_result\\'
     Transformer_base_path = 'Transformer_result\\'
 
@@ -225,12 +232,12 @@ if __name__ == '__main__':
 
         npzfile = load_EM_result(EM_base_path, params_load)
         X = npzfile['X']
-        X_test = npzfile['X_test']
-        Y = npzfile['Y']
+        X_test = npzfile['Y']
+        Y = npzfile['X_test']
         Y_test = npzfile['Y_test']
         X_label = npzfile['X_label']
         X_test_label = npzfile['X_test_label']
-        EM_class = npzfile['EM_class']
+        EM_class = npzfile['EM_model']
         # ##############################GRU Initialization##############################################
         # # data input
 
@@ -258,28 +265,28 @@ if __name__ == '__main__':
                               X_test, Y_test,
                               X_test_label)
 
-        # # Evaluate GRU
-        #
-        # # Calculate NRMSE for GRU training velocity
-        # rmse_train_vel_gru = np.sqrt(np.mean((hand_velocity_gru_train - Y) ** 2)) / np.sqrt(np.var(Y))
-        # print('NRMSE for GRU training velocity:', rmse_train_vel_gru)
-        #
-        # # Calculate NRMSE for GRU velocity
-        # rmse_vel_gru = np.sqrt(np.mean((hand_velocity_gru - Y_test) ** 2)) / np.sqrt(np.var(Y_test))
-        # print('NRMSE for GRU test velocity:', rmse_vel_gru)
-        #
-        # # Calculate R square for GRU training velocity
-        # r2_train_vel_gru = cal_R_square(hand_velocity_gru_train, Y)
-        # print('R square for GRU training velocity:', r2_train_vel_gru)
-        #
-        # # Calculate R square for GRU velocity
-        # r2_vel_gru = cal_R_square(hand_velocity_gru, Y_test)
-        # print('R square for GRU testing velocity:', r2_vel_gru)
-        #
-        # # Calculate NRMSE for a randomized shuffled trial version of hand_velocity
-        # rmse_vel_shuffled = np.sqrt(np.mean((np.random.permutation(hand_velocity_gru) - Y_test) ** 2)) / np.sqrt(np.var(Y_test))
-        # print('NRMSE for shuffled velocity:', rmse_vel_shuffled)
-        #
+        # Evaluate GRU
+
+        # Calculate NRMSE for GRU training velocity
+        rmse_train_vel_gru = np.sqrt(np.mean((hand_velocity_gru_train - Y) ** 2)) / np.sqrt(np.var(Y))
+        print('NRMSE for GRU training velocity:', rmse_train_vel_gru)
+
+        # Calculate NRMSE for GRU velocity
+        rmse_vel_gru = np.sqrt(np.mean((hand_velocity_gru - Y_test) ** 2)) / np.sqrt(np.var(Y_test))
+        print('NRMSE for GRU test velocity:', rmse_vel_gru)
+
+        # Calculate R square for GRU training velocity
+        r2_train_vel_gru = cal_R_square(hand_velocity_gru_train, Y)
+        print('R square for GRU training velocity:', r2_train_vel_gru)
+
+        # Calculate R square for GRU velocity
+        r2_vel_gru = cal_R_square(hand_velocity_gru, Y_test)
+        print('R square for GRU testing velocity:', r2_vel_gru)
+
+        # Calculate NRMSE for a randomized shuffled trial version of hand_velocity
+        rmse_vel_shuffled = np.sqrt(np.mean((np.random.permutation(hand_velocity_gru) - Y_test) ** 2)) / np.sqrt(np.var(Y_test))
+        print('NRMSE for shuffled velocity:', rmse_vel_shuffled)
+
         # # Plot hand trajectory and True value
         # plot_hand_trajectory_conditions(hand_velocity_gru, Y_test, X_test_label, trial_number=4, seed=seed, label='GRU Test')
         #
@@ -318,29 +325,29 @@ if __name__ == '__main__':
                               X_test, Y_test,
                               X_test_label)
 
-        # # Evaluate Transformer
-        #
-        # # Calculate NRMSE for Transformer training velocity
-        # rmse_train_vel_Transformer = np.sqrt(np.mean((hand_velocity_Transformer_train - Y) ** 2)) / np.sqrt(np.var(Y))
-        # print('NRMSE for Transformer training velocity:', rmse_train_vel_Transformer)
-        #
-        # # Calculate NRMSE for Transformer velocity
-        # rmse_vel_Transformer = np.sqrt(np.mean((hand_velocity_Transformer - Y_test) ** 2)) / np.sqrt(np.var(Y_test))
-        # print('NRMSE for Transformer test velocity:', rmse_vel_Transformer)
-        #
-        # # Calculate R square for Transformer training velocity
-        # r2_train_vel_Transformer = cal_R_square(hand_velocity_Transformer_train, Y)
-        # print('R square for Transformer training velocity:', r2_train_vel_Transformer)
-        #
-        # # Calculate R square for Transformer velocity
-        # r2_vel_Transformer = cal_R_square(hand_velocity_Transformer, Y_test)
-        # print('R square for Transformer testing velocity:', r2_vel_Transformer)
-        #
-        # # Calculate NRMSE for a randomized shuffled trial version of hand_velocity
-        # rmse_vel_shuffled = np.sqrt(np.mean((np.random.permutation(hand_velocity_Transformer) - Y_test) ** 2)) / np.sqrt(
-        #     np.var(Y_test))
-        # print('NRMSE for shuffled velocity:', rmse_vel_shuffled)
-        #
+        # Evaluate Transformer
+
+        # Calculate NRMSE for Transformer training velocity
+        rmse_train_vel_Transformer = np.sqrt(np.mean((hand_velocity_Transformer_train - Y) ** 2)) / np.sqrt(np.var(Y))
+        print('NRMSE for Transformer training velocity:', rmse_train_vel_Transformer)
+
+        # Calculate NRMSE for Transformer velocity
+        rmse_vel_Transformer = np.sqrt(np.mean((hand_velocity_Transformer - Y_test) ** 2)) / np.sqrt(np.var(Y_test))
+        print('NRMSE for Transformer test velocity:', rmse_vel_Transformer)
+
+        # Calculate R square for Transformer training velocity
+        r2_train_vel_Transformer = cal_R_square(hand_velocity_Transformer_train, Y)
+        print('R square for Transformer training velocity:', r2_train_vel_Transformer)
+
+        # Calculate R square for Transformer velocity
+        r2_vel_Transformer = cal_R_square(hand_velocity_Transformer, Y_test)
+        print('R square for Transformer testing velocity:', r2_vel_Transformer)
+
+        # Calculate NRMSE for a randomized shuffled trial version of hand_velocity
+        rmse_vel_shuffled = np.sqrt(np.mean((np.random.permutation(hand_velocity_Transformer) - Y_test) ** 2)) / np.sqrt(
+            np.var(Y_test))
+        print('NRMSE for shuffled velocity:', rmse_vel_shuffled)
+
         # # Plot hand trajectory and True value
         # plot_hand_trajectory_conditions(hand_velocity_Transformer, Y_test, X_test_label,
         #                                 trial_number=4, seed=seed,label='Transformer Test')

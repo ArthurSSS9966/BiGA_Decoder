@@ -222,8 +222,8 @@ def get_surrogate_data(train_spikes, train_velocity, trial_type, trials=200, spl
     n_trial_types = np.random.choice(np.unique(trial_type), min(len(np.unique(trial_type)), trials // 10),
                                      replace=False)
 
-    n_trial_types_test = n_trial_types[-7:]  # TODO: Comment Out For same condition
-    n_trial_types_train = n_trial_types[:-7]  # TODO: Comment Out For same condition
+    # n_trial_types_test = n_trial_types[-7:]  # TODO: Comment Out For same condition
+    # n_trial_types_train = n_trial_types[:-7]  # TODO: Comment Out For same condition
 
     # Initialize lists to store indices
     train_data_idx = []
@@ -233,23 +233,23 @@ def get_surrogate_data(train_spikes, train_velocity, trial_type, trials=200, spl
     trials_per_condition_train = int(np.floor(split * trials / len(n_trial_types)))
     trials_per_condition_test = int(np.ceil((1 - split) * trials / len(n_trial_types)))
 
-    # Select indices for train and test data  # TODO: Comment Out For same condition
-    for i in n_trial_types_train:
-        idx = np.where(np.array(trial_type) == i)[0]
-        np.random.shuffle(idx)
-        train_data_idx.extend(idx[:trials_per_condition_train])
-
-    for i in n_trial_types_test:
-        idx = np.where(np.array(trial_type) == i)[0]
-        np.random.shuffle(idx)
-        test_data_idx.extend(idx[:trials_per_condition_train])
-
-    # TODO: Uncomment for same condition
+    # # Select indices for train and test data  # TODO: Comment Out For same condition
     # for i in n_trial_types_train:
     #     idx = np.where(np.array(trial_type) == i)[0]
     #     np.random.shuffle(idx)
     #     train_data_idx.extend(idx[:trials_per_condition_train])
-    #     test_data_idx.extend(idx[trials_per_condition_train:trials_per_condition_train + trials_per_condition_test])
+    #
+    # for i in n_trial_types_test:
+    #     idx = np.where(np.array(trial_type) == i)[0]
+    #     np.random.shuffle(idx)
+    #     test_data_idx.extend(idx[:trials_per_condition_train])
+
+    # TODO: Uncomment for same condition
+    for i in n_trial_types:
+        idx = np.where(np.array(trial_type) == i)[0]
+        np.random.shuffle(idx)
+        train_data_idx.extend(idx[:trials_per_condition_train])
+        test_data_idx.extend(idx[trials_per_condition_train:trials_per_condition_train + trials_per_condition_test])
 
     # Extracting training and testing data
     surrogate_data_train = np.array([train_spikes[i] for i in train_data_idx])
