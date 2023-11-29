@@ -1,6 +1,7 @@
 from nlb_tools.nwb_interface import NWBDataset
 from matplotlib import pyplot as plt
 import matplotlib.colors as mcolors
+from matplotlib.lines import Line2D
 import pandas as pd
 import numpy as np
 import time
@@ -392,22 +393,28 @@ def plot_hand_trajectory_conditions(true_vel, pred_vel, labels, trial_number=5, 
     condition_index = np.random.choice(unique_condition, con_num, replace=False)
     plot_index = []
 
+    legend_elements = []  # List to hold the legend elements
+
     for i in condition_index:
         plot_index.extend(np.where(labels == i)[0][:trial_number])
+        # color = _get_color_for_condition(i, np.min(labels), np.max(labels))
+        # legend_elements.append(Line2D([0], [0], color=color, lw=2, label='Condition ' + str(i)))
 
     for i in plot_index:
         # Choose a random trial
         color = _get_color_for_condition(labels[i], np.min(labels), np.max(labels))
-        _plot_hand_trajectory(pred_vel[i], true_vel[i], ax, plot_color=color)
+        _plot_hand_trajectory(true_vel[i], pred_vel[i], ax, plot_color=color)
+
     ax.set_title('Predicted vs True Hand Trajectory ' + label)
     ax.set_xlabel('X position (mm)')
     ax.set_ylabel('Y position (mm)')
-    ax.legend(['Condition ' + str(i) for i in condition_index])
-    # Change color of legend
-    for i in range(len(condition_index)):
-        ax.get_legend().get_texts()[i].set_color(_get_color_for_condition(condition_index[i],
-                                                                          np.min(labels),
-                                                                          np.max(labels)))
+    # ax.legend(['Condition ' + str(i) for i in condition_index])
+    ax.legend(['Predicted Velocity','True Velocity'], color='black', fontSize=12)
+    # # Change color of legend
+    # for i in range(len(condition_index)):
+    #     ax.get_legend().get_texts()[i].set_color(_get_color_for_condition(condition_index[i],
+    #                                                                       np.min(labels),
+    #                                                                       np.max(labels)))
 
     fig.suptitle('Hand Trajectory', fontsize=20)
     plt.show()
@@ -555,57 +562,48 @@ def plot_latent_states_1d(latent_states, trial_type, trial_num=5, con_num=4, see
     plt.show()
 
 
-def plot_raw_data(data, trial_type, con_num=4, neuron_num=5, seed=2023, label = 'Train'):
+def plot_raw_data(data, trial_type, con_num=4, neuron_num=5, seed=2023, label='Train'):
     '''
     Plot con_num conditions in each subplot and within each subplot plot neuron_num neurons and trial_num trials
     :param data:
     :param trial_type:
-    :param trial_num:
     :param con_num:
     :param neuron_num:
     :param seed:
+    :param label:
     :return:
     '''
-    # Set seed
     np.random.seed(seed)
     fig, ax = plt.subplots()
-    # Set figure larger
     fig.set_size_inches(18.5, 10.5)
 
     unique_condition = np.unique(trial_type)
-    # Choose con_num conditions and plot all trials in that condition
     condition_index = np.random.choice(unique_condition, con_num, replace=False)
     plot_index = [[]] * con_num
-    # create empty list for each condition
     neuron_index = np.random.choice(data.shape[-1], neuron_num)
 
     for i, j in enumerate(condition_index):
         plot_index[i] = np.where(trial_type == j)[0]
 
     for j, i in enumerate(condition_index):
-        # Plot raw data in each subplot
         ax = fig.add_subplot(2, con_num // 2, j + 1)
 
         for k in neuron_index:
-            # Calculate the trial average for each neuron
             neuron_avg = np.mean(data[plot_index[j], :, k], axis=0)
             neuron_conf_int = np.std(data[plot_index[j], :, k], axis=0) / np.sqrt(len(plot_index))
             color = _get_color_for_condition(k, np.min(neuron_index), np.max(neuron_index))
             ax.plot(neuron_avg, color=color, label='Neuron ' + str(k))
-            ax.fill_between(np.arange(len(neuron_avg)), neuron_avg - neuron_conf_int, neuron_avg + neuron_conf_int,
-                            color=color, alpha=0.2)
+            ax.fill_between(np.arange(len(neuron_avg)), neuron_avg - neuron_conf_int, neuron_avg + neuron_conf_int, color=color, alpha=0.2)
 
         ax.set_title('Condition ' + str(i))
         ax.set_xlabel('Time')
         ax.set_ylabel('Firing Rate')
-        ax.legend(['Neuron ' + str(i) for i in neuron_index])
-        # Change color of legend
-    for i in range(len(neuron_index)):
-        ax.get_legend().get_texts()[i].set_color(_get_color_for_condition(neuron_index[i],
-                                                                          np.min(neuron_index),
-                                                                          np.max(neuron_index)))
 
-    # Add big title
+        # Create a custom legend with only the line plots
+        handles, labels = ax.get_legend_handles_labels()
+        filtered_handles = [h for h, l in zip(handles, labels) if not l.startswith('_')]
+        ax.legend(handles=filtered_handles, title='Neurons')
+
     fig.suptitle(label + ' Raw Data', fontsize=20)
     plt.show()
 

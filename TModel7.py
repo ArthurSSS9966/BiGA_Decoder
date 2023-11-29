@@ -45,7 +45,7 @@ class TransformerModel(torch.nn.Module):
         self.y_train = torch.from_numpy(self.y_train).float().to(self.device, non_blocking=True)
         self.y_test = torch.from_numpy(self.y_test).float().to(self.device, non_blocking=True)
 
-    def Build(self,hiddendim, middle_dim, nhead,num_layers, learningRate=0.001, weight_decay=0.0001):
+    def Build(self, middle_dim, nhead, num_layers, learningRate=0.001, weight_decay=0.0001):
         '''
         Transformer parameters: 
         nhead =                             (default)
@@ -58,7 +58,7 @@ class TransformerModel(torch.nn.Module):
         inputdim = self.X_train.shape[2]
         outputsize = self.y_train.shape[2]
         self.input_dim = inputdim
-        self.hiddendim = hiddendim
+        self.hiddendim = inputdim
         self.nhead=nhead
         self.num_layers = num_layers
         self.output_dim = outputsize
