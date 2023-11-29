@@ -124,6 +124,7 @@ def pre_process_spike(spikes, vel, dataset, window_step=50, overlap=False, smoot
 
         down_spikes[i] = _downsample_data(spikes[i], downsample_rate=window_step, overlap=overlap,
                                           **kwargs)  # Smooth with 250ms moving window
+
         # Downsample velocity the same rate as spikes
         bin_num = down_spikes[i].shape[0]
         down_ind = np.linspace(0, vel[i].shape[0] - 1, bin_num).astype(int)
@@ -183,18 +184,25 @@ def _seg_data_by_trial(df, data_type='spikes'):
 def _downsample_data(data, downsample_rate=5, overlap=False, **kwargs):
     """
     Downsample data by summing over a window of bins
-    :param data:
-    :param downsample_rate:
-    :param overlap:
-    :param kwargs:
-    :return:
+    :param data: 2D array to downsample.
+    :param downsample_rate: Rate of downsampling.
+    :param overlap: Whether to allow overlapping windows.
+    :param kwargs: Additional arguments.
+    :return: Downsampled data.
     """
+    n_rows, n_cols = data.shape
+
     if not overlap:
-        # Down sample by calculating the sum firing rate over a window of every downsample_rate bins
-        re_sampled_data = data.reshape(-1, downsample_rate, data.shape[1]).sum(axis=1)
+        # Calculate the number of complete windows
+        complete_windows = n_rows // downsample_rate
+
+        # Select only the data that fits into complete windows
+        selected_data = data[:complete_windows * downsample_rate, :]
+
+        # Downsample by calculating the sum firing rate over a window of every downsample_rate bins
+        re_sampled_data = selected_data.reshape(-1, downsample_rate, n_cols).sum(axis=1)
     else:
         window_size = kwargs.get('window_size', downsample_rate)
-        n_rows, n_cols = data.shape
         n_windows = 1 + (n_rows - window_size) // downsample_rate
         summed_windows = np.zeros((n_windows, n_cols))
 
