@@ -12,6 +12,7 @@ from util import import_dataset, get_spikes_and_velocity, pre_process_spike, \
     noisy_bootstrapping_condition, save_EM_result, load_EM_result, save_model_result
 from EM import em_core
 from GRUcore import BiGRU
+from GRUTModel import GTModel
 
 
 if __name__ == '__main__':
@@ -29,6 +30,7 @@ if __name__ == '__main__':
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu") # device TODO: Fixed [cuda:0]
     concatenate = False  # concatenate latent states and spike data TODO: Fixed [False]
     Transformer_Epochs = 200  # TODO: Fixed [200]
+    GTModel_Epochs = 200
     seed = 12  # TODO: Fixed [12]
     EM_base_path = 'EM_result\\'
 
@@ -224,6 +226,7 @@ if __name__ == '__main__':
     Transformer_hidden_dim_comb = [60]
     GRU_base_path = 'GRU_result\\'
     Transformer_base_path = 'Transformer_result\\'
+    grutmodel_base_path = 'GRUTmodel_result\\'
 
     for state_dimensions, N_E, noise_level, bootstrapping_sample in ML_model_parameter_comb:
 
@@ -355,3 +358,64 @@ if __name__ == '__main__':
         # # Plot training hand trajectory and True value
         # plot_hand_trajectory_conditions(hand_velocity_Transformer_train, Y, X_label,
         #                                     trial_number=10, seed=seed, label='Transformer Train')
+
+        # ##############################GTModel Initialization##############################################
+        # hiddem dim inherit TModel (dim = 60)
+        for Transformer_hidden_dim in Transformer_hidden_dim_comb:
+
+            grutmodel_params_load = {'state_dimensions': state_dimensions, 'N_E': N_E, 'noise_level': noise_level,
+                                 'bootstrapping_sample': bootstrapping_sample, 'Transformer_hidden_dim': Transformer_hidden_dim}
+
+            # # data input
+            # X_train = EM_class.cal_latent_states(X, current=True)
+            X_train = EM_class.cal_latent_states(X, current=True)
+            X_test_grutmodel = EM_class.cal_latent_states(X_test, current=True)
+            grutmodel = GTModel(device=device)
+            grutmodel.to(device, non_blocking=True)
+            grutmodel.load_data(X_train, X_test_grutmodel, Y, Y_test)
+            grutmodel.Build(hiddendim=Transformer_hidden_dim, middle_dim=Transformer_hidden_dim, nhead=1, num_layers=2,
+                              learningRate=0.001, weight_decay=0.0001)
+            # grutmodel.Build(hiddendim=grutmodel_hidden_dim, nhead = 1,num_layers = 1, learningRate=0.001, weight_decay=0.0001)
+            train_mse, test_mse = grutmodel.train_fit(GTModel_Epochs)
+
+            train_mse = train_mse.cpu().detach().numpy()
+            test_mse = test_mse.cpu().detach().numpy()
+
+            hand_velocity_grutmodel_train = grutmodel.predict_velocity(grutmodel.X_train)
+            hand_velocity_grutmodel = grutmodel.predict_velocity(grutmodel.X_test)
+
+            save_model_result(grutmodel_params_load, grutmodel_base_path,
+                              grutmodel, EM_class,
+                              X_test, Y_test,
+                              X_test_label)
+
+        # Evaluate grutmodel
+
+        # Calculate NRMSE for grutmodel training velocity
+        rmse_train_vel_grutmodel = np.sqrt(np.mean((hand_velocity_grutmodel_train - Y) ** 2)) / np.sqrt(np.var(Y))
+        print('NRMSE for grutmodel training velocity:', rmse_train_vel_grutmodel)
+
+        # Calculate NRMSE for grutmodel velocity
+        rmse_vel_grutmodel = np.sqrt(np.mean((hand_velocity_grutmodel - Y_test) ** 2)) / np.sqrt(np.var(Y_test))
+        print('NRMSE for grutmodel test velocity:', rmse_vel_grutmodel)
+
+        # Calculate R square for grutmodel training velocity
+        r2_train_vel_grutmodel = cal_R_square(hand_velocity_grutmodel_train, Y)
+        print('R square for grutmodel training velocity:', r2_train_vel_grutmodel)
+
+        # Calculate R square for grutmodel velocity
+        r2_vel_grutmodel = cal_R_square(hand_velocity_grutmodel, Y_test)
+        print('R square for grutmodel testing velocity:', r2_vel_grutmodel)
+
+        # Calculate NRMSE for a randomized shuffled trial version of hand_velocity
+        rmse_vel_shuffled = np.sqrt(np.mean((np.random.permutation(hand_velocity_grutmodel) - Y_test) ** 2)) / np.sqrt(
+            np.var(Y_test))
+        print('NRMSE for shuffled velocity:', rmse_vel_shuffled)
+
+        # # Plot hand trajectory and True value
+        # plot_hand_trajectory_conditions(hand_velocity_grutmodel, Y_test, X_test_label,
+        #                                 trial_number=4, seed=seed,label='grutmodel Test')
+        #
+        # # Plot training hand trajectory and True value
+        # plot_hand_trajectory_conditions(hand_velocity_grutmodel_train, Y, X_label,
+        #                                     trial_number=10, seed=seed, label='grutmodel Train')
