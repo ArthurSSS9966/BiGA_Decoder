@@ -11,7 +11,7 @@ from util import import_dataset, get_spikes_and_velocity, pre_process_spike, \
     plot_latent_states, plot_latent_states_1d, plot_raw_data, encode_trial_type, noisy_bootstrapping, \
     noisy_bootstrapping_condition, save_EM_result, load_EM_result, save_model_result
 from EM import em_core
-from GRUcore import BiGRU
+from BIGRU import BiGRU
 
 
 if __name__ == '__main__':
