@@ -298,7 +298,7 @@ if __name__ == '__main__':
         # # Plot training hand trajectory and True value
         # plot_hand_trajectory_conditions(hand_velocity_gru_train, Y, X_label, trial_number=10, seed=seed, label='GRU Train')
 
-        # ##############################Transformer Initialization##############################################
+        # ##############################AFFN (Transformer) Initialization##############################################
         #
         from AFFN import Affn
 
@@ -363,10 +363,11 @@ if __name__ == '__main__':
 
         # ##############################bigaModel Initialization##############################################
         # hiddem dim inherit TModel (dim = 60)
-        for Transformer_hidden_dim in Transformer_hidden_dim_comb:
+        Biga_hidden_dim_comb = Transformer_hidden_dim_comb
+        for bigamodel_hidden_dim in Biga_hidden_dim_comb:
 
             bigamodel_params_load = {'state_dimensions': state_dimensions, 'N_E': N_E, 'noise_level': noise_level,
-                                 'bootstrapping_sample': bootstrapping_sample, 'Transformer_hidden_dim': Transformer_hidden_dim}
+                                 'bootstrapping_sample': bootstrapping_sample, 'Biga_hidden_dim': bigamodel_hidden_dim}
 
             # # data input
             # X_train = EM_class.cal_latent_states(X, current=True)
@@ -375,7 +376,7 @@ if __name__ == '__main__':
             bigamodel = biga(device=device)
             bigamodel.to(device, non_blocking=True)
             bigamodel.load_data(X_train, X_test_bigamodel, Y, Y_test)
-            bigamodel.Build(hiddendim=Transformer_hidden_dim, middle_dim=Transformer_hidden_dim, nhead=1, num_layers=2,
+            bigamodel.Build(hiddendim=bigamodel_hidden_dim, middle_dim=bigamodel_hidden_dim, nhead=1, num_layers=2,
                               learningRate=0.001, weight_decay=0.0001)
             # bigamodel.Build(hiddendim=bigamodel_hidden_dim, nhead = 1,num_layers = 1, learningRate=0.001, weight_decay=0.0001)
             train_mse, test_mse = bigamodel.train_fit(BIGAModel_Epochs)
