@@ -27,7 +27,7 @@ class PositionalEncoding(torch.nn.Module):
         return x
     
 
-class GTModel(torch.nn.Module):
+class Biga(torch.nn.Module):
 
     def __init__(self, device):
         super().__init__()
