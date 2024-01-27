@@ -295,7 +295,7 @@ if __name__ == '__main__':
 
         # ##############################Transformer Initialization##############################################
         #
-        from TModel7 import TransformerModel
+        from AFFN import Affn
 
         for Transformer_hidden_dim in Transformer_hidden_dim_comb:
 
@@ -306,7 +306,7 @@ if __name__ == '__main__':
             # X_train = EM_class.cal_latent_states(X, current=True)
             X_train = EM_class.cal_latent_states(X, current=True)
             X_test_Transformer = EM_class.cal_latent_states(X_test, current=True)
-            Transformer = TransformerModel(device=device)
+            Transformer = Affn(device=device)
             Transformer.to(device, non_blocking=True)
             Transformer.load_data(X_train, X_test_Transformer, Y, Y_test)
             Transformer.Build(hiddendim=Transformer_hidden_dim, middle_dim=Transformer_hidden_dim, nhead=1, num_layers=2,
