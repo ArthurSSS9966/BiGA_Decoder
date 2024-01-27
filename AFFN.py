@@ -26,7 +26,7 @@ class PositionalEncoding(torch.nn.Module):
         return x
     
 
-class AFFN(torch.nn.Module):
+class Affn(torch.nn.Module):
 
     def __init__(self, device):
         super().__init__()
