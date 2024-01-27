@@ -2,7 +2,7 @@ from torch import nn
 import torch
 from tqdm import tqdm
 from torch.optim.lr_scheduler import CosineAnnealingLR
-
+from regularizers import compute_regularizer_term
 
 class BiGRU(torch.nn.Module):
     def __init__(self, device):
@@ -23,7 +23,8 @@ class BiGRU(torch.nn.Module):
         self.y_train = torch.from_numpy(self.y_train).float().to(self.device, non_blocking=True)
         self.y_test = torch.from_numpy(self.y_test).float().to(self.device, non_blocking=True)
 
-    def Build(self, hiddendim, learningRate=0.001, weight_decay=0.0001):
+    def Build(self, hiddendim, learningRate=0.001, weight_decay=0.0001,hidden_prior='Uniform',hidden_prior2='False',hyperatio=1.,lambda_=0.001,c=1):
+
 
         inputdim = self.X_train.shape[2]
         outputsize = self.y_train.shape[2]
@@ -39,6 +40,13 @@ class BiGRU(torch.nn.Module):
         # Set up the cosine learning rate scheduler
         lr_min = learningRate * 0.1
         self.scheduler = CosineAnnealingLR(self.optimizer, T_max=100, eta_min=lr_min)
+        # regularizer
+        self.lambda_=lambda_
+        self.hidden_prior=hidden_prior
+        self.hidden_prior2=hidden_prior2
+        self.hyperatio=hyperatio
+        self.c = c
+
 
     def forward(self, xt):
         xt = xt.to(self.device, non_blocking=True)
@@ -69,12 +77,11 @@ class BiGRU(torch.nn.Module):
             MSE_cv_linear_epoch[i] = self.loss_fn(v_predict_cv, V_cv)
 
             self.train()
-
+            self.optimizer.zero_grad()
             output = self(x_latent)
             loss = self.loss_fn(output, V_train)
-
-            self.optimizer.zero_grad()
-
+            reg_term = self.hidden_layer_regularizer()
+            loss = loss + reg_term
             loss.backward()
 
             self.optimizer.step()
@@ -93,3 +100,25 @@ class BiGRU(torch.nn.Module):
         v_predict = v_predict.cpu().detach().numpy()
         hidden_states = hidden_states.cpu().detach().numpy()
         return v_predict, hidden_states
+
+    def hidden_layer_regularizer(self):
+        """
+            Compute the regularization loss of the hidden layers.
+        """
+
+        assert self.hidden_prior in ['Uniform', 'Cauchy', 'Gaussian', 'Laplace','Sinc_squared', 'negcos', 'SinFouthPower'], "Change the data name to 'uniform', 'Cauchy', 'Gaussian', 'Laplace', or 'Sinc_squared','Sinc_squared', 'negcos', 'SinFouthPower'."
+        reg_loss = torch.tensor([0.0], device=self.device)
+        
+        
+        if self.hidden_prior != "Uniform":    
+            for name, param in self.named_parameters():
+
+                if (name[0:8] not in ['gru.bias'])&(name[-4:]!='bias'):
+                #if (name[0:3] == 'fc_') &(name[-4:]!='bias'):
+                    reg_loss = reg_loss + compute_regularizer_term(wgts=param,
+                                                                    lambda_=self.lambda_,
+                                                                    hidden_prior=self.hidden_prior,
+                                                                    hidden_prior2=self.hidden_prior2,
+                                                                    hyperatio=self.hyperatio,
+                                                                    c=self.c)
+        return reg_loss

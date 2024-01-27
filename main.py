@@ -11,8 +11,10 @@ from util import import_dataset, get_spikes_and_velocity, pre_process_spike, \
     plot_latent_states, plot_latent_states_1d, plot_raw_data, encode_trial_type, noisy_bootstrapping, \
     noisy_bootstrapping_condition, save_EM_result, load_EM_result, save_model_result
 from EM import em_core
-from GRUcore import BiGRU
-from GRUTModel import GTModel
+
+from BiGA import biga
+from BIGRU import BiGRU
+
 
 
 if __name__ == '__main__':
@@ -298,7 +300,7 @@ if __name__ == '__main__':
 
         # ##############################Transformer Initialization##############################################
         #
-        from TModel7 import TransformerModel
+        from AFFN import Affn
 
         for Transformer_hidden_dim in Transformer_hidden_dim_comb:
 
@@ -309,7 +311,7 @@ if __name__ == '__main__':
             # X_train = EM_class.cal_latent_states(X, current=True)
             X_train = EM_class.cal_latent_states(X, current=True)
             X_test_Transformer = EM_class.cal_latent_states(X_test, current=True)
-            Transformer = TransformerModel(device=device)
+            Transformer = Affn(device=device)
             Transformer.to(device, non_blocking=True)
             Transformer.load_data(X_train, X_test_Transformer, Y, Y_test)
             Transformer.Build(hiddendim=Transformer_hidden_dim, middle_dim=Transformer_hidden_dim, nhead=1, num_layers=2,
@@ -370,7 +372,7 @@ if __name__ == '__main__':
             # X_train = EM_class.cal_latent_states(X, current=True)
             X_train = EM_class.cal_latent_states(X, current=True)
             X_test_grutmodel = EM_class.cal_latent_states(X_test, current=True)
-            grutmodel = GTModel(device=device)
+            grutmodel = biga(device=device)
             grutmodel.to(device, non_blocking=True)
             grutmodel.load_data(X_train, X_test_grutmodel, Y, Y_test)
             grutmodel.Build(hiddendim=Transformer_hidden_dim, middle_dim=Transformer_hidden_dim, nhead=1, num_layers=2,

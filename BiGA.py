@@ -27,7 +27,7 @@ class PositionalEncoding(torch.nn.Module):
         return x
     
 
-class GTModel(torch.nn.Module):
+class Biga(torch.nn.Module):
 
     def __init__(self, device):
         super().__init__()
@@ -54,6 +54,11 @@ class GTModel(torch.nn.Module):
         dropout = 0.1                       (default)
         activation = relu                   (default)
         norm_first                          (default)
+        hidden_prior = Uniform              (default)
+        hidden_prior2 = False               (default)
+        hyperatio = 1                       # control the proportion of the two regularizer; [0,1]
+        lambda = 0.001                      # penalty; [0,+infinity)
+        c = 1                               # control the shape of the pdf of the regularizer (hidden prior)
         '''
 
         inputdim = self.X_train.shape[2]
@@ -63,7 +68,7 @@ class GTModel(torch.nn.Module):
         self.nhead=nhead
         self.num_layers = num_layers
         self.output_dim = outputsize
-        #self.embedding = nn.Linear(self.input_dim,self.hiddendim).to(self.device,non_blocking=True)
+        #self.embedding = nn.Linear(self.input_dim,self.hiddendim).to(self.device,non_blocking=True)    # optional, embedding the data prior to model
         self.middle_dim = middle_dim
         self.gru = nn.GRU(self.input_dim, self.hiddendim, num_layers=1, bidirectional=True,
                           batch_first=True).to(self.device, non_blocking=True)
@@ -74,6 +79,7 @@ class GTModel(torch.nn.Module):
         self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer,
                                                          num_layers=self.num_layers).to(self.device, non_blocking=True)
 
+        # build the feedforward network structure
         self.fc_out = nn.Linear(self.hiddendim, self.middle_dim).to(self.device, non_blocking=True)
         self.fc_out1 = nn.Linear(self.middle_dim, self.middle_dim).to(self.device, non_blocking=True)
         self.fc_out2 = nn.Linear(self.middle_dim, self.middle_dim).to(self.device, non_blocking=True)
@@ -85,7 +91,7 @@ class GTModel(torch.nn.Module):
         lr_min = learningRate * 0.5
         self.scheduler = CosineAnnealingLR(self.optimizer, T_max=100, eta_min=lr_min)
 
-        # regularizer
+        # regularizer parameters
         self.lambda_=lambda_
         self.hidden_prior=hidden_prior
         self.hidden_prior2=hidden_prior2
@@ -154,7 +160,7 @@ class GTModel(torch.nn.Module):
     
     def hidden_layer_regularizer(self):
         """
-            Compute the regularization loss of the hidden layers.
+            Compute the regularizer (mixed) term
         """
 
         assert self.hidden_prior in ['Uniform', 'Cauchy', 'Gaussian', 'Laplace','Sinc_squared', 'negcos', 'SinFouthPower'], "Change the data name to 'uniform', 'Cauchy', 'Gaussian', 'Laplace', or 'Sinc_squared','Sinc_squared', 'negcos', 'SinFouthPower'."
@@ -164,8 +170,8 @@ class GTModel(torch.nn.Module):
         if self.hidden_prior != "Uniform":    
             for name, param in self.named_parameters():
 
+                # biases do not engage in regularization
                 if (name[0:9] not in ['embedding'])&(name[-4:]!='bias')&(name[0:3]!='enc')&(name[0:8] not in ['gru.bias']):
-                #if (name[0:3] == 'fc_') &(name[-4:]!='bias'):
                     reg_loss = reg_loss + compute_regularizer_term(wgts=param,
                                                                     lambda_=self.lambda_,
                                                                     hidden_prior=self.hidden_prior,

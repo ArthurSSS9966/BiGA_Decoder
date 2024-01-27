@@ -3,7 +3,7 @@ import torch
 from tqdm import tqdm
 import math
 from torch.optim.lr_scheduler import CosineAnnealingLR
-
+from regularizers import compute_regularizer_term
 
 class PositionalEncoding(torch.nn.Module):
     def __init__(self,hiddendim,lens, device):
@@ -26,7 +26,7 @@ class PositionalEncoding(torch.nn.Module):
         return x
     
 
-class TransformerModel(torch.nn.Module):
+class Affn(torch.nn.Module):
 
     def __init__(self, device):
         super().__init__()
@@ -45,7 +45,7 @@ class TransformerModel(torch.nn.Module):
         self.y_train = torch.from_numpy(self.y_train).float().to(self.device, non_blocking=True)
         self.y_test = torch.from_numpy(self.y_test).float().to(self.device, non_blocking=True)
 
-    def Build(self, middle_dim, nhead, num_layers, learningRate=0.001, weight_decay=0.0001):
+    def Build(self,hiddendim, middle_dim, nhead,num_layers, learningRate=0.001, weight_decay=0.0001,hidden_prior='Uniform',hidden_prior2='False',hyperatio=1.,lambda_=0.001,c=1):
         '''
         Transformer parameters: 
         nhead =                             (default)
@@ -58,13 +58,13 @@ class TransformerModel(torch.nn.Module):
         inputdim = self.X_train.shape[2]
         outputsize = self.y_train.shape[2]
         self.input_dim = inputdim
-        self.hiddendim = inputdim
+        self.hiddendim = hiddendim
         self.nhead=nhead
         self.num_layers = num_layers
         self.output_dim = outputsize
         #self.embedding = nn.Linear(self.input_dim,self.hiddendim).to(self.device,non_blocking=True)
         self.middle_dim = middle_dim
-        self.embeddingv = nn.Linear(self.output_dim,self.hiddendim).to(self.device,non_blocking=True)
+        #self.embeddingv = nn.Linear(self.output_dim,self.hiddendim).to(self.device,non_blocking=True)
         self.position_encode = PositionalEncoding(self.hiddendim,self.timestep, self.device)
 
         self.encoder_layer = nn.TransformerEncoderLayer(d_model=self.hiddendim, nhead=nhead, batch_first=True)
@@ -77,15 +77,23 @@ class TransformerModel(torch.nn.Module):
         self.fc_out3 = nn.Linear(self.middle_dim, self.middle_dim).to(self.device, non_blocking=True)
         self.fc_out4 = nn.Linear(self.middle_dim, self.output_dim).to(self.device, non_blocking=True)
         
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=learningRate, weight_decay=weight_decay)
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=learningRate, weight_decay=weight_decay,eps=1e-3)
         # Set up the cosine learning rate scheduler
         lr_min = learningRate * 0.5
         self.scheduler = CosineAnnealingLR(self.optimizer, T_max=100, eta_min=lr_min)
+
+        # regularizer
+        self.lambda_=lambda_
+        self.hidden_prior=hidden_prior
+        self.hidden_prior2=hidden_prior2
+        self.hyperatio=hyperatio
+        self.c = c
 
     def forward(self,xt):
         xt = xt.to(self.device, non_blocking=True)
         #xt = self.embedding(xt)
         trans_out = self.position_encode(xt)
+
 
         trans_out = self.transformer_encoder(trans_out)
         trans_out = self.fc_out(trans_out)
@@ -119,11 +127,12 @@ class TransformerModel(torch.nn.Module):
             MSE_cv_linear_epoch[i] = self.loss_fn(v_predict_cv, V_cv)
 
             self.train()
-
+            self.optimizer.zero_grad()
             output = self(x_latent)
             loss = self.loss_fn(output, V_train)
+            reg_term = self.hidden_layer_regularizer()
 
-            self.optimizer.zero_grad()
+            loss = loss + reg_term
             loss.backward()
 
             self.optimizer.step()
@@ -137,3 +146,25 @@ class TransformerModel(torch.nn.Module):
         with torch.no_grad():
             v_predict = self(x_latent).detach().cpu().numpy()
         return v_predict
+    
+    def hidden_layer_regularizer(self):
+        """
+            Compute the regularization loss of the hidden layers.
+        """
+
+        assert self.hidden_prior in ['Uniform', 'Cauchy', 'Gaussian', 'Laplace','Sinc_squared', 'negcos', 'SinFouthPower'], "Change the data name to 'uniform', 'Cauchy', 'Gaussian', 'Laplace', or 'Sinc_squared','Sinc_squared', 'negcos', 'SinFouthPower'."
+        reg_loss = torch.tensor([0.0], device=self.device)
+        
+        
+        if self.hidden_prior != "Uniform":    
+            for name, param in self.named_parameters():
+
+                if (name[0:9] not in ['embedding'])&(name[-4:]!='bias')&(name[0:3]!='enc'):
+                #if (name[0:3] == 'fc_') &(name[-4:]!='bias'):
+                    reg_loss = reg_loss + compute_regularizer_term(wgts=param,
+                                                                    lambda_=self.lambda_,
+                                                                    hidden_prior=self.hidden_prior,
+                                                                    hidden_prior2=self.hidden_prior2,
+                                                                    hyperatio=self.hyperatio,
+                                                                    c=self.c)
+        return reg_loss
